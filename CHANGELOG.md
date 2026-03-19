@@ -30,3 +30,7 @@
 - Leyendas de tartas muestran nombre completo + ticker pequeño
 - Fechas de operaciones renderizadas en formato DD/MM/YYYY (no ISO crudo)
 - Columna `≈ EUR` en operaciones de acciones en divisa extranjera
+
+### movil.html
+- **divTotal por tarjeta**: dividendos en USD se convertían a EUR incorrectamente (se sumaba el importe nativo sin conversión). Ahora usa `toEUR()` igual que el resto de la app
+- **Auto-refresh**: `_checkAutoRefresh` solo comprobaba posiciones de fondos para decidir si actualizar precios — si el usuario solo tenía acciones, nunca auto-refrescaba. Ahora comprueba fondos Y acciones, y usa `_priceDate` (ISO) cuando está disponible antes de caer al campo `fecha_precio`

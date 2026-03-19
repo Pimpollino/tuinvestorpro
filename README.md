@@ -42,7 +42,7 @@ Aplicación web de gestión de cartera de inversión personal, diseñada para in
 ```
 tuinvestorpro/
 ├── index.html          # Interfaz principal (SPA)
-├── movil.html          # Versión móvil simplificada
+├── movil.html          # Versión móvil optimizada (responsive, auto-refresh)
 ├── portafolio.js       # Lógica completa (~6000 líneas)
 ├── guardar.php         # API backend (operaciones CRUD, reset, importación)
 ├── precio.php          # Proxy Yahoo Finance / FT (precios NAV y cotizaciones)
