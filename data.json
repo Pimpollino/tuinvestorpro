@@ -1,0 +1,27 @@
+{
+  "meta": {
+    "version": "2.0",
+    "created": "2026-01-01",
+    "auth_hash": "b920988cc2ef76ff726fa53d13598502215935543361aa7557fb984905434a46"
+  },
+  "fx": {},
+  "fondos": {
+    "posiciones": [],
+    "operaciones": [],
+    "benchmark": [],
+    "reembolsos_broker": [],
+    "invertido_real_total": 0
+  },
+  "acciones": {
+    "posiciones": [],
+    "operaciones": [],
+    "total_realized": 0
+  },
+  "yahoo_fx_ticker": "EURUSD=X",
+  "rebalanceo": {
+    "universe": [],
+    "updated_at": ""
+  },
+  "fire": {},
+  "price_history": {}
+}

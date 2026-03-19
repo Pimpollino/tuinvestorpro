@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>tuinvestorPRO</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e1525;--s:#182035;--s2:#1e2a42;--bd:rgba(255,255,255,.08);
+  --ac:#00d4aa;--ac2:#3b8bff;--red:#ff4d6d;--yel:#f5c842;--pur:#a78bfa;--ora:#f97316;
+  --text:#e8edf5;--mu:#6a85a5;--mu2:#96aec6;--r:16px;
+  --fondos:#00d4aa;--acciones:#a78bfa;
+}
+html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;font-size:15px}
+button,input,select{font-family:inherit;cursor:pointer}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}
+/* grid eliminado — estilo banking limpio */
+
+/* ── HEADER ── */
+#hdr{position:sticky;top:0;z-index:100;border-bottom:1px solid var(--bd);background:rgba(14,21,37,.97);backdrop-filter:blur(20px);padding:0 32px}
+#hdr-i{max-width:1400px;margin:0 auto;height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative;z-index:1}
+#logo{display:flex;align-items:center;white-space:nowrap}
+#logo-img{height:36px;width:auto;display:block}
+#hdr-val{text-align:center;line-height:1.3;white-space:nowrap}
+#tv{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:22px;color:var(--ac);letter-spacing:-.01em}
+#ts{font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--mu2)}
+
+/* ── BROKER SWITCHER ── */
+#broker-bar{background:rgba(14,21,37,.96);border-bottom:1px solid var(--bd);padding:0 32px;position:sticky;top:64px;z-index:99;backdrop-filter:blur(16px)}
+#broker-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;gap:0;height:44px}
+.bk-btn{background:transparent;border:none;border-bottom:2px solid transparent;padding:0 20px;height:44px;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--mu2);transition:all .18s;display:flex;align-items:center;gap:7px}
+.bk-btn:hover{color:var(--mu2)}
+.bk-btn.on[data-broker="fondos"]{color:var(--fondos);border-bottom-color:var(--fondos)}
+.bk-btn.on[data-broker="acciones"]{color:var(--acciones);border-bottom-color:var(--acciones)}
+.bk-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.bk-summary{margin-left:auto;display:flex;gap:0;font-size:11px;color:var(--mu)}
+.bk-summary .bks{display:flex;flex-direction:column;align-items:flex-end;gap:2px;padding:0 11px;border-left:1px solid var(--bd);min-width:72px}
+.bk-summary .bks:first-child{border-left:none}
+.bk-summary .bks-lbl{font-size:10px;color:var(--mu);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.bk-summary .bks-val{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;white-space:nowrap}
+.bk-summary .bks-sub{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600}
+
+/* ── SUB-NAV ── */
+#subnav{padding:0 32px;background:rgba(14,21,37,.96);border-bottom:1px solid var(--bd);position:sticky;top:108px;z-index:98;backdrop-filter:blur(16px)}
+#subnav-inner{max-width:1400px;margin:0 auto;height:46px;display:flex;align-items:center;gap:2px}
+.nb{background:transparent;border:1px solid transparent;color:var(--mu);border-radius:8px;padding:6px 13px;font-weight:700;font-size:11px;letter-spacing:.04em;text-transform:uppercase;transition:all .15s}
+.nb:hover{color:var(--mu2);border-color:var(--bd)}
+.nb.on[data-broker="fondos"]{background:rgba(0,229,176,.08);border-color:rgba(0,229,176,.3);color:var(--fondos)}
+.nb.on[data-broker="acciones"]{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.3);color:var(--acciones)}
+
+/* ── LAYOUT ── */
+#wrap{max-width:1400px;margin:0 auto;padding:24px 32px;position:relative;z-index:1}
+.view{display:none}.view.on{display:block;animation:fu .2s ease}
+@keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── COMPONENTS ── */
+.krow{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.kpi{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);padding:18px 20px;flex:1;min-width:160px;position:relative;overflow:hidden;transition:transform .18s,border-color .18s,box-shadow .18s;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.kpi:hover{transform:translateY(-2px);border-color:rgba(255,255,255,.16);box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.card{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);padding:18px 20px;box-shadow:0 2px 12px rgba(0,0,0,.2)}
+.card-title{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:12px;}
+.kbar{position:absolute;top:0;left:0;right:0;height:2px}
+.klbl{color:var(--mu2);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.kval{font-size:22px;font-weight:800;letter-spacing:-.03em;font-family:'JetBrains Mono',monospace}
+.ksub{font-size:11px;font-weight:600;margin-top:3px}
+.panel{background:var(--s);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.2)}
+.ph{padding:12px 18px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mu2);gap:8px;flex-wrap:wrap}
+.ph-t{color:var(--text);letter-spacing:normal;text-transform:none;font-size:13px}
+.pb{padding:18px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.gdb{display:grid;grid-template-columns:1fr 280px;gap:16px;margin-bottom:16px}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{padding:8px 12px;text-align:left;color:var(--mu);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;background:var(--s2)}
+td{padding:12px 14px;border-top:1px solid rgba(255,255,255,.05);font-size:12px;vertical-align:middle}
+tr:hover td{background:rgba(255,255,255,.03)}
+.bdg{border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border:1px solid;display:inline-block;white-space:nowrap}
+.mono{font-family:'JetBrains Mono',monospace}.mu{color:var(--mu2)}
+.fg label{display:block;color:var(--mu);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.inp{background:var(--s2);border:1px solid var(--bd);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;width:100%;transition:border-color .2s,box-shadow .2s;font-family:'DM Sans',sans-serif}
+.inp:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(0,212,170,.12)}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px}
+.bp{background:var(--ac);color:#000;border:none;border-radius:8px;padding:8px 14px;font-weight:800;font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.bp:hover{opacity:.85}
+.bp.pur{background:var(--pur)}
+.bs{background:var(--s2);border:1px solid var(--bd);color:var(--mu2);border-radius:8px;padding:8px 14px;font-weight:700;font-size:11px;display:inline-block}
+.tbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.err{color:var(--red);font-size:12px;margin-top:8px}
+canvas{display:block;max-width:100%}
+.rrow{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--s2);border-radius:12px;margin-bottom:6px}
+.plr{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px;padding:0 2px}
+.cleg{display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--mu2)}
+.ld{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:4px;vertical-align:middle}
+.no-trib{display:inline-flex;align-items:center;gap:5px;background:rgba(0,229,176,.07);border:1px solid rgba(0,229,176,.25);color:var(--ac);border-radius:20px;padding:2px 9px;font-size:10px;font-weight:700}
+.lot-row{display:flex;justify-content:space-between;font-size:11px;padding:4px 8px;border-radius:5px;background:rgba(255,255,255,.03);margin-bottom:2px}
+details>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;color:var(--mu);font-size:11px}
+details>summary::before{content:'▶';font-size:9px;transition:transform .15s}
+details[open]>summary::before{transform:rotate(90deg)}
+.sec-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 0 10px;display:flex;align-items:center;gap:8px}
+.sec-title::before{content:'';display:inline-block;width:3px;height:14px;border-radius:2px}
+.sec-title.fondos-title::before{background:var(--fondos)}
+.sec-title.acciones-title::before{background:var(--acciones)}
+.divid-row{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:7px;margin-bottom:4px;background:rgba(167,139,250,.05);border:1px solid rgba(167,139,250,.12)}
+/* ── LOADING ── */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:16px;background:linear-gradient(135deg,#0e1525 0%,#14213a 100%)}
+#loading-dot{width:36px;height:36px;background:var(--ac);border-radius:8px;animation:pulse .9s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:.3;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+@media(max-width:960px){.gdb,.g2{grid-template-columns:1fr}.bk-summary{display:none}}
+@media(max-width:600px){#hdr-i{flex-wrap:wrap;height:auto;padding:10px 0}#broker-bar{top:0;position:relative}#subnav{top:0;position:relative}}
+th.sortable { cursor:pointer; user-select:none; white-space:nowrap; }
+th.sortable:hover { color:var(--ac); }
+th.sortable::after { content:' ⇅'; opacity:0.4; font-size:9px; }
+th.sort-asc::after { content:' ↑'; opacity:1; color:var(--ac); }
+th.sort-desc::after { content:' ↓'; opacity:1; color:var(--ac); }
+
+  #login-screen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: linear-gradient(160deg,#0e1525 0%,#0a1020 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Sans', sans-serif;
+  }
+  #login-box {
+    background: #0e1318;
+    border: 1px solid #1e2830;
+    border-radius: 16px;
+    padding: 40px 36px;
+    width: 100%; max-width: 360px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.6);
+  }
+  #login-logo { margin-bottom: 12px; }
+  #login-logo img { height: 48px; width: auto; }
+  #login-sub { font-size: 13px; color: #4a5568; margin-bottom: 28px; }
+  .login-field { margin-bottom: 14px; }
+  .login-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #718096; margin-bottom: 6px; display: block; }
+  .login-input { width: 100%; background: #141a21; border: 1px solid #1e2830; border-radius: 8px; color: #e2e8f0; padding: 10px 14px; font-size: 14px; font-family: inherit; outline: none; transition: border-color .2s; box-sizing: border-box; }
+  .login-input:focus { border-color: #00e5b0; }
+  #login-btn { width: 100%; background: #00e5b0; color: #000; border: none; border-radius: 8px; padding: 12px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; margin-top: 8px; letter-spacing: .03em; transition: opacity .15s; }
+  #login-btn:hover { opacity: .88; }
+  #login-err { color: #ff4d6d; font-size: 12px; margin-top: 10px; text-align: center; min-height: 18px; }
+  .fp-btn { background: #0d1420; border: 1px solid #1e3a5f; color: #4a6785; font: 11px monospace; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all .15s; }
+  .fp-btn:hover { border-color: #00e5b0; color: #00e5b0; }
+  .fp-btn.active { background: #00e5b022; border-color: #00e5b0; color: #00e5b0; }
+  #fund-perf-modal { display: none; }
+  #fund-perf-modal.open { display: flex !important; }
+
+  /* ── MODAL CONFIGURACIÓN ── */
+  #cfg-modal { display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);align-items:center;justify-content:center; }
+  #cfg-modal.open { display:flex; }
+  #cfg-box { background:var(--s);border:1px solid var(--bd);border-radius:20px;padding:28px 32px;width:420px;max-width:calc(100vw - 32px);box-shadow:0 24px 60px rgba(0,0,0,.6); }
+  #cfg-box h2 { font-size:16px;font-weight:700;color:var(--text);margin-bottom:20px;display:flex;align-items:center;gap:8px; }
+  .cfg-section { background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:12px; }
+  .cfg-section-title { font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mu2);margin-bottom:12px; }
+  .cfg-row { display:flex;flex-direction:column;gap:6px;margin-bottom:10px; }
+  .cfg-row:last-child { margin-bottom:0; }
+  .cfg-label { font-size:11px;color:var(--mu2);font-weight:600; }
+  .cfg-inp { background:var(--bg);border:1px solid var(--bd);border-radius:10px;color:var(--text);padding:9px 12px;font-size:13px;outline:none;width:100%;font-family:inherit;transition:border-color .2s,box-shadow .2s; }
+  .cfg-inp:focus { border-color:var(--ac);box-shadow:0 0 0 3px rgba(0,212,170,.12); }
+  #cfg-msg { font-size:12px;min-height:18px;margin-top:4px;text-align:center; }
+  .cfg-btn-row { display:flex;gap:8px;margin-top:16px; }
+  .cfg-btn { flex:1;padding:10px;border-radius:10px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;border:none;transition:opacity .15s; }
+  .cfg-btn:hover { opacity:.85; }
+  .cfg-btn.primary { background:var(--ac);color:#000; }
+  .cfg-btn.secondary { background:var(--s2);border:1px solid var(--bd);color:var(--mu2); }
+  .cfg-btn.danger { background:var(--red);color:#fff; }
+  .cfg-btn.danger:disabled { opacity:.35;cursor:not-allowed; }
+  .cfg-reset-zone { border:1px solid rgba(255,77,109,.25);border-radius:12px;padding:16px;margin-bottom:12px;background:rgba(255,77,109,.04); }
+  .cfg-reset-zone .cfg-section-title { color:#ff6b85; }
+  #cfg-reset-steps > div { display:none; }
+  #cfg-reset-steps > div.active { display:block; }
+  .cfg-warning-icon { font-size:28px;text-align:center;margin-bottom:8px; }
+  .cfg-warning-txt { font-size:12px;color:var(--mu2);line-height:1.6;margin-bottom:12px; }
+  .cfg-warning-txt strong { color:#ff6b85; }
+  .cfg-confirm-inp { background:var(--bg);border:2px solid rgba(255,77,109,.4);border-radius:10px;color:var(--text);padding:9px 12px;font-size:14px;font-weight:700;letter-spacing:.05em;outline:none;width:100%;font-family:inherit;text-align:center;transition:border-color .2s; }
+  .cfg-confirm-inp:focus { border-color:var(--red); }
+  .cfg-confirm-inp::placeholder { font-weight:400;letter-spacing:0;color:var(--mu); }
+</style>
+</head>
+<body>
+
+<!-- LOADING SCREEN -->
+<div id="login-screen">
+  <div id="login-box">
+    <div id="login-logo"><img src="logo.png" alt="tuinvestorPRO" style="filter:brightness(1.1)"></div>
+    <div id="login-sub">Acceso privado</div>
+    <div class="login-field">
+      <label class="login-label">Usuario</label>
+      <input class="login-input" type="text" id="l-user" autocomplete="username" placeholder="usuario">
+    </div>
+    <div class="login-field">
+      <label class="login-label">Contraseña</label>
+      <input class="login-input" type="password" id="l-pass" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button id="login-btn" onclick="doLogin()">Entrar</button>
+    <div id="login-err"></div>
+  </div>
+</div>
+<div id="loading" style="display:none">
+  <div id="loading-dot"></div>
+  <span style="font-size:12px;color:var(--mu);letter-spacing:.1em;text-transform:uppercase">Cargando portafolio…</span>
+</div>
+
+<!-- HEADER -->
+<div id="hdr"><div id="hdr-i">
+  <div id="logo"><img id="logo-img" src="logo.png" alt="tuinvestorPRO"></div>
+  <div id="hdr-val"><div id="tv">—</div><div id="ts" style="color:var(--mu2)"></div></div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button id="btn-refresh" onclick="refreshPrices()" style="background:none;border:1px solid var(--mu2);color:var(--mu2);border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap" title="Actualizar precios">⟳ Actualizar</button>
+    <button onclick="openCfg()" style="background:none;border:1px solid var(--bd);color:var(--mu2);border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer;line-height:1" title="Configuración">⚙</button>
+  </div>
+</div></div>
+
+<!-- BROKER SWITCHER -->
+<div id="broker-bar"><div id="broker-inner">
+  <button class="bk-btn on" data-broker="fondos" onclick="switchBroker('fondos',this)">
+    <span class="bk-dot" style="background:var(--fondos)"></span>Fondos de inversión
+  </button>
+  <button class="bk-btn" data-broker="acciones" onclick="switchBroker('acciones',this)">
+    <span class="bk-dot" style="background:var(--acciones)"></span>Acciones &amp; ETF
+  </button>
+  <button class="bk-btn" data-broker="resumen" onclick="switchBroker('resumen',this)">
+    <span class="bk-dot" style="background:var(--mu2)"></span>Resumen global
+  </button>
+  <button class="bk-btn" data-broker="desinversion" onclick="switchBroker('desinversion',this)">
+    <span class="bk-dot" style="background:#f43f5e"></span>Desinversión
+  </button>
+  <div class="bk-summary" id="bk-summary"></div>
+</div></div>
+
+<!-- SUB-NAV -->
+<div id="subnav"><div id="subnav-inner">
+  <button class="nb on" data-broker="fondos" id="nb-fondos-dashboard" onclick="ST('fondos','dashboard',this)">Dashboard</button>
+  <button class="nb"    data-broker="fondos" id="nb-fondos-cartera"   onclick="ST('fondos','cartera',this)">Cartera</button>
+  <button class="nb"    data-broker="fondos" id="nb-fondos-ops"       onclick="ST('fondos','ops',this)">Operaciones</button>
+  <button class="nb"    data-broker="fondos" id="nb-fondos-analisis"  onclick="ST('fondos','analisis',this)">Análisis</button>
+  <button class="nb"    data-broker="fondos" id="nb-fondos-fiscal"    onclick="ST('fondos','fiscal',this)">Fiscal</button>
+  <button class="nb"    data-broker="fondos" id="nb-fondos-rebalanceo" onclick="ST('fondos','rebalanceo',this)">Rebalanceo</button>
+  <button class="nb"    data-broker="fondos" id="nb-fondos-fire"       onclick="ST('fondos','fire',this)">🔥 FIRE</button>
+  <button class="nb" style="display:none" data-broker="acciones" id="nb-acciones-dashboard" onclick="ST('acciones','dashboard',this)">Dashboard</button>
+  <button class="nb" style="display:none" data-broker="acciones" id="nb-acciones-cartera"   onclick="ST('acciones','cartera',this)">Cartera</button>
+  <button class="nb" style="display:none" data-broker="acciones" id="nb-acciones-ops"       onclick="ST('acciones','ops',this)">Operaciones</button>
+  <button class="nb" style="display:none" data-broker="acciones" id="nb-acciones-analisis"  onclick="ST('acciones','analisis',this)">Análisis</button>
+  <button class="nb" style="display:none" data-broker="acciones" id="nb-acciones-fiscal"    onclick="ST('acciones','fiscal',this)">Fiscal</button>
+  <button class="nb" style="display:none" data-broker="resumen" id="nb-resumen-dashboard" onclick="ST('resumen','dashboard',this)">Resumen</button>
+  <button class="nb" style="display:none" data-broker="resumen" id="nb-resumen-importar" onclick="ST('resumen','importar',this)">📥 Importar datos</button>
+    <button class="nb" style="display:none" data-broker="desinversion" id="nb-desinversion-optimizador" onclick="ST('desinversion','optimizador',this)">🎯 Optimizador venta</button>
+  <button class="nb" style="display:none" data-broker="desinversion" id="nb-desinversion-metas"       onclick="ST('desinversion','metas',this)">🎓 Metas de ahorro</button>
+  <button class="nb" style="display:none" data-broker="desinversion" id="nb-desinversion-jubilacion"  onclick="ST('desinversion','jubilacion',this)">🏖 Jubilación &amp; herencia</button>
+</div></div>
+
+<div id="wrap">
+
+<!-- ═══════════════════════════════════════════ FONDOS ═══════════════════════════════════════════ -->
+
+<!-- FONDOS · DASHBOARD -->
+<div id="view-fondos-dashboard" class="view on">
+  <div class="krow" id="f-kd"></div>
+  <div class="gdb">
+    <div class="panel">
+      <div class="ph" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+        <span class="ph-t">Rendimiento por fondo</span>
+        <div style="display:flex;align-items:center;gap:8px">
+        <div id="fund-perf-periods" style="display:flex;gap:4px">
+          <button class="fp-btn active" data-period="max" onclick="FUND_PERF_PERIOD('max')">Max</button>
+          <button class="fp-btn" data-period="ytd" onclick="FUND_PERF_PERIOD('ytd')">YTD</button>
+          <button class="fp-btn" data-period="1y"  onclick="FUND_PERF_PERIOD('1y')">1A</button>
+          <button class="fp-btn" data-period="6m"  onclick="FUND_PERF_PERIOD('6m')">6M</button>
+          <button class="fp-btn" data-period="3m"  onclick="FUND_PERF_PERIOD('3m')">3M</button>
+          <button class="fp-btn" data-period="1m"  onclick="FUND_PERF_PERIOD('1m')">1M</button>
+        </div>
+        <button class="fp-btn" onclick="FUND_PERF_EXPAND()" title="Pantalla completa" style="padding:3px 7px;font-size:13px">⤢</button>
+        </div>
+      </div>
+      <div class="pb"><canvas id="c-fund-perf" height="340"></canvas>
+        <div class="cleg" id="fund-perf-legend"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="ph-t">Distribución fondos</span></div>
+      <div class="pb" style="display:flex;flex-direction:column;align-items:center">
+        <canvas id="c-pie-f" width="200" height="155"></canvas>
+        <div id="pie-lbl-f" style="width:100%;margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FONDOS · CARTERA -->
+<div id="view-fondos-cartera" class="view">
+  <div class="panel">
+    <div class="ph"><span class="ph-t">Posiciones actuales — Fondos</span><span id="f-b-pos"></span></div>
+    <div class="tw"><table><thead><tr>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Ticker</th><th class="sortable" data-col="1" onclick="sortTable(this)">Nombre</th><th class="sortable" data-col="2" onclick="sortTable(this)">Títulos</th><th class="sortable" data-col="3" onclick="sortTable(this)">Coste medio</th><th class="sortable" data-col="4" onclick="sortTable(this)">Precio actual</th><th class="sortable" data-col="5" onclick="sortTable(this)">Fecha NAV</th><th class="sortable" data-col="6" onclick="sortTable(this)">Valor</th><th class="sortable" data-col="7" onclick="sortTable(this)">G/P €</th><th class="sortable" data-col="8" onclick="sortTable(this)">G/P %</th><th class="sortable" data-col="9" onclick="sortTable(this)" style="text-align:right">1W</th><th class="sortable" data-col="10" onclick="sortTable(this)" style="text-align:right">1M</th><th class="sortable" data-col="11" onclick="sortTable(this)" style="text-align:right">3M</th><th class="sortable" data-col="12" onclick="sortTable(this)" style="text-align:right">1Y</th>
+    </tr></thead><tbody id="f-tb-cartera"></tbody></table></div>
+  </div>
+  <!-- Panel configuración Yahoo Tickers — rellenado dinámicamente por renderTickerConfig() -->
+  <div id="f-ticker-config" style="margin-top:8px"></div>
+</div>
+
+<!-- FONDOS · OPERACIONES -->
+<div id="view-fondos-ops" class="view">
+  <div class="tbar">
+    <button class="bp" id="f-btn-form" onclick="toggleForm('f')">+ Nueva operación</button>
+    <button class="bs" id="ff-email-btn" onclick="toggleEmailParser()">&#128203; Desde email</button>
+  </div>
+  <div id="f-op-form" class="panel" style="display:none;margin-bottom:14px">
+    <div class="ph" style="border-bottom:2px solid rgba(0,229,176,.15)">
+      <span class="ph-t">Nueva Operación — Fondo</span>
+    </div>
+    <div class="pb" style="padding:20px 24px">
+      <!-- Parser emails Inversis -->
+      <div id="ff-email-area" style="display:none;margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--bd)">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mu);margin-bottom:10px">Pegar email de Inversis — para traspasos puedes pegar los dos emails juntos</div>
+        <textarea id="ff-email-text" class="inp" style="width:100%;height:130px;resize:vertical;font-family:var(--font-mono,monospace);font-size:11px;line-height:1.5" placeholder="Copia y pega aquí el texto del email de confirmación de Inversis…"></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <button class="bp" onclick="parseInversisEmail()" style="font-size:12px;padding:5px 14px">&#128269; Parsear</button>
+          <button class="bs" onclick="document.getElementById('ff-email-text').value='';document.getElementById('ff-email-out').style.display='none'" style="font-size:12px">&#10005; Limpiar</button>
+        </div>
+        <div id="ff-email-out" style="display:none;margin-top:10px;padding:8px 12px;border-radius:6px;font-size:12px"></div>
+      </div>
+      <!-- Fila 1: Tipo + Fecha -->
+      <div style="display:grid;grid-template-columns:220px 180px;gap:14px;margin-bottom:20px">
+        <div class="fg"><label>Tipo *</label><select id="ff-type" class="inp" onchange="onFondoTipoChange()">
+          <option value="suscripcion">Suscripción (compra)</option>
+          <option value="reembolso">Reembolso (venta)</option>
+          <option value="traspaso">Traspaso entre fondos</option>
+        </select></div>
+        <div class="fg"><label>Fecha *</label><input id="ff-date" type="date" class="inp"></div>
+      </div>
+      <!-- Suscripción / Reembolso -->
+      <div id="ff-single">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mu);margin-bottom:10px">Datos del fondo</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+          <div class="fg"><label>ISIN *</label><input id="ff-isin" class="inp" placeholder="FR0000447823" oninput="autoFillFondo('ff-isin','ff-nombre','ff-yahoo')"></div>
+          <div class="fg"><label>Nombre fondo</label><input id="ff-nombre" class="inp" style="color:var(--mu2)"></div>
+          <div class="fg"><label>Símbolo Yahoo <span style="font-size:10px;color:var(--mu2)">(p.ej. FR0000447823.PA)</span></label><input id="ff-yahoo" class="inp" placeholder="automático si ya existe"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:160px 200px;gap:14px">
+          <div class="fg"><label>Títulos *</label><input id="ff-qty" type="number" class="inp" step="any"></div>
+          <div class="fg"><label>Precio/título * (€)</label><input id="ff-price" type="number" class="inp" step="any"></div>
+        </div>
+      </div>
+      <!-- Traspaso -->
+      <div id="ff-traspaso" style="display:none">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mu);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--bd)">Fondo origen</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+          <div class="fg"><label>ISIN origen *</label><input id="ff-isin-o" class="inp" placeholder="IE000ZYRH0Q7" oninput="autoFillFondo('ff-isin-o','ff-nombre-o','ff-yahoo-o')"></div>
+          <div class="fg"><label>Nombre</label><input id="ff-nombre-o" class="inp" style="color:var(--mu2)"></div>
+          <div class="fg"><label>Símbolo Yahoo</label><input id="ff-yahoo-o" class="inp" placeholder="automático si ya existe"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:160px 200px;gap:14px;margin-bottom:20px">
+          <div class="fg"><label>Títulos origen *</label><input id="ff-qty-o" type="number" class="inp" step="any"></div>
+          <div class="fg"><label>Precio origen * (€)</label><input id="ff-price-o" type="number" class="inp" step="any"></div>
+        </div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mu);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--bd)">Fondo destino</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+          <div class="fg"><label>ISIN destino *</label><input id="ff-isin-d" class="inp" placeholder="IE000QAZP7L2" oninput="autoFillFondo('ff-isin-d','ff-nombre-d','ff-yahoo-d')"></div>
+          <div class="fg"><label>Nombre</label><input id="ff-nombre-d" class="inp" style="color:var(--mu2)"></div>
+          <div class="fg"><label>Símbolo Yahoo <span style="font-size:10px;color:var(--mu2)">(solo si es fondo nuevo)</span></label><input id="ff-yahoo-d" class="inp" placeholder="automático si ya existe"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:160px 200px;gap:14px">
+          <div class="fg"><label>Títulos destino *</label><input id="ff-qty-d" type="number" class="inp" step="any"></div>
+          <div class="fg"><label>Precio destino * (€)</label><input id="ff-price-d" type="number" class="inp" step="any"></div>
+        </div>
+      </div>
+      <div id="ff-err" class="err" style="display:none;margin-top:14px"></div>
+      <div style="display:flex;gap:10px;margin-top:20px;align-items:center">
+        <button class="bp" onclick="saveOp('f')" style="background:var(--ac);color:#000;font-weight:700">&#128190; Guardar</button>
+        <span id="ff-saving" style="font-size:12px;color:var(--mu2);display:none">Guardando…</span>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="bs" onclick="filterOpsF('all')" id="fof-all" style="border-color:var(--ac);color:var(--ac)">Todos</button>
+    <button class="bs" onclick="filterOpsF('suscripcion')" id="fof-compra">Suscripciones</button>
+    <button class="bs" onclick="filterOpsF('reembolso')" id="fof-venta">Reembolsos</button>
+    <button class="bs" onclick="filterOpsF('traspaso_entrada')" id="fof-trasp">Traspasos</button>
+  </div>
+  <div class="panel">
+    <div class="ph"><span class="ph-t">Historial — Fondos</span><span id="f-b-ops"></span></div>
+    <div class="tw"><table><thead><tr>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Tipo</th><th class="sortable" data-col="1" onclick="sortTable(this)">Fondo</th><th class="sortable" data-col="2" onclick="sortTable(this)">Fecha</th><th class="sortable" data-col="3" onclick="sortTable(this)">Títulos</th><th class="sortable" data-col="4" onclick="sortTable(this)">Precio €</th><th style="color:var(--mu2);font-size:10px">—</th><th class="sortable" data-col="5" onclick="sortTable(this)">Total</th><th></th>
+    </tr></thead><tbody id="f-tb-ops"></tbody></table></div>
+  </div>
+</div>
+
+<!-- FONDOS · ANÁLISIS -->
+<div id="view-fondos-analisis" class="view">
+  <div class="krow" id="f-ka"></div>
+  <div class="g2">
+    <div class="panel"><div class="ph"><span class="ph-t">G/P latente por posición</span></div><div class="pb"><canvas id="c-gl-f" height="200"></canvas></div></div>
+    <div class="panel"><div class="ph"><span class="ph-t">Ranking rentabilidad — Fondos</span></div><div class="pb" id="f-ranking"></div></div>
+  </div>
+</div>
+
+<!-- FONDOS · FISCAL -->
+<div id="view-fondos-fiscal" class="view">
+  <div class="krow" id="f-kfis"></div>
+  <div class="g2" style="margin-bottom:16px">
+    <div class="panel"><div class="ph"><span class="ph-t">Plusvalías por ejercicio fiscal</span></div><div class="pb" id="f-years"></div></div>
+    <div class="panel"><div class="ph"><span class="ph-t" id="f-coste-fiscal-ph">Coste fiscal · broker</span></div><div class="pb" id="f-fpos"></div></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><span class="ph-t">Reembolsos tributables (FIFO)</span><span id="f-reembolsos-badge" style="color:var(--mu);font-size:11px;font-weight:400">—</span></div>
+    <div class="tw"><table><thead><tr>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Fecha</th><th class="sortable" data-col="1" onclick="sortTable(this)">Fondo</th><th class="sortable" data-col="2" onclick="sortTable(this)">Títulos</th><th class="sortable" data-col="3" onclick="sortTable(this)">Venta</th><th class="sortable" data-col="4" onclick="sortTable(this)">Coste FIFO</th><th class="sortable" data-col="5" onclick="sortTable(this)">G/P bruta</th><th class="sortable" data-col="6" onclick="sortTable(this)">IRPF est.</th><th class="sortable" data-col="7" onclick="sortTable(this)">G/P neta</th><th class="sortable" data-col="8" onclick="sortTable(this)">Lotes</th>
+    </tr></thead><tbody id="f-tb-ventas"></tbody></table></div>
+  </div>
+  <div class="panel" style="margin-top:16px">
+    <div class="ph"><span class="ph-t" id="f-traspasos-title">Traspasos</span><span class="no-trib">&#128260; Coste fiscal heredado</span></div>
+    <div class="tw"><table><thead><tr>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Fecha</th><th class="sortable" data-col="1" onclick="sortTable(this)">Origen</th><th class="sortable" data-col="2" onclick="sortTable(this)">Destino</th><th class="sortable" data-col="3" onclick="sortTable(this)">Importe</th><th class="sortable" data-col="4" onclick="sortTable(this)">Régimen</th>
+    </tr></thead><tbody id="f-tb-traspasos"></tbody></table></div>
+  </div>
+</div>
+
+
+<!-- FONDOS · REBALANCEO -->
+<div id="view-fondos-rebalanceo" class="view">
+  <div class="panel">
+    <div class="ph">
+      <span class="ph-t">📊 Calculadora de rebalanceo</span>
+    </div>
+    <div class="pb">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;color:var(--mu2);text-transform:uppercase;letter-spacing:.07em">Importe a invertir (€)</label>
+          <input id="reb-importe" type="number" class="inp" style="width:160px;font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700" placeholder="220" min="0" step="10" oninput="rebCalc()">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;color:var(--mu2);text-transform:uppercase;letter-spacing:.07em">Total cartera activa</label>
+          <div id="reb-total-cartera" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--ac);padding:9px 0">—</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;color:var(--mu2);text-transform:uppercase;letter-spacing:.07em">Total futuro</label>
+          <div id="reb-total-futuro" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--mu2);padding:9px 0">—</div>
+        </div>
+      </div>
+      <div class="tw" id="reb-tabla-wrap">
+        <table id="reb-tabla">
+          <thead><tr>
+            <th>Fondo</th>
+            <th style="text-align:right">Peso obj.</th>
+            <th style="text-align:right">Saldo actual</th>
+            <th style="text-align:right">Peso real</th>
+            <th style="text-align:right">Desviación</th>
+            <th style="text-align:right;color:var(--ac)">Aportación €</th>
+            <th style="text-align:right">% del total</th>
+          </tr></thead>
+          <tbody id="reb-tbody"></tbody>
+          <tfoot id="reb-tfoot"></tfoot>
+        </table>
+      </div>
+      <div id="reb-aviso" style="display:none;margin-top:12px;padding:10px 14px;background:rgba(245,200,66,.08);border:1px solid rgba(245,200,66,.3);border-radius:8px;font-size:12px;color:var(--yel)"></div>
+    </div>
+  </div>
+<div class="panel" style="margin-bottom:16px">
+    <div class="ph">
+      <span class="ph-t">⚖ Universo de rebalanceo</span>
+      <span style="font-size:11px;color:var(--mu);font-weight:400">Fondos incluidos (excl. monetario) · los pesos deben sumar 100%</span>
+    </div>
+    <div class="pb" id="reb-config-body">
+      <!-- Renderizado por JS -->
+    </div>
+    <div style="padding:0 20px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <input id="reb-new-isin" class="inp" placeholder="ISIN" style="width:140px;font-family:'JetBrains Mono',monospace;font-size:13px" oninput="rebAutoFill(this.value)">
+      <input id="reb-new-nombre" class="inp" placeholder="Nombre (opcional)" style="width:180px;font-size:13px">
+      <button class="bp" onclick="rebAddFondo()">+ Añadir fondo</button>
+      <span id="reb-sum-check" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700"></span>
+      <button class="bp" id="reb-save-btn" onclick="rebSavePesos()" style="margin-left:auto;background:var(--ac);color:#000">💾 Guardar pesos</button>
+      <span id="reb-save-msg" style="font-size:12px;color:var(--ac);display:none">✓ Guardado</span>
+    </div>
+  </div>
+
+  </div>
+
+
+<!-- FONDOS · FIRE -->
+<div id="view-fondos-fire" class="view">
+
+  <!-- ── Modal ayuda FIRE ── -->
+  <div id="fire-help-modal" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:99999;overflow-y:auto;padding:32px 16px">
+    <div onclick="event.stopPropagation()" style="max-width:740px;margin:0 auto;background:#111827;border:1px solid #2d3748;border-radius:16px;padding:40px;position:relative;box-shadow:0 32px 96px rgba(0,0,0,.8)">
+
+      <button onclick="document.getElementById('fire-help-modal').style.display='none'" style="position:absolute;top:20px;right:20px;background:#1f2937;border:1px solid #374151;color:#9ca3af;font-size:18px;cursor:pointer;width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0;line-height:1">✕</button>
+
+      <div style="margin-bottom:28px">
+        <div style="font-size:24px;font-weight:800;color:#00e5b0;letter-spacing:-.02em;margin-bottom:4px">🔥 Guía del simulador FIRE</div>
+        <div style="font-size:13px;color:#6b7280">Financial Independence, Retire Early — cómo funciona cada cálculo</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:24px">
+
+        <div style="background:#1f2937;border-radius:10px;padding:20px">
+          <div style="font-size:13px;font-weight:700;color:#00e5b0;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">¿Qué es FIRE?</div>
+          <div style="font-size:14px;line-height:1.75;color:#d1d5db">Estrategia para acumular suficiente patrimonio y vivir de las rentas sin depender de un salario. En tu caso, la <span style="color:#00e5b0;font-weight:600">pensión pública cubre los gastos</span>, así que el objetivo es doble: adelantar la jubilación (FIRE anticipado) y maximizar la herencia.</div>
+        </div>
+
+        <div style="background:#1f2937;border-radius:10px;padding:20px">
+          <div style="font-size:13px;font-weight:700;color:#00e5b0;text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px">📥 Parámetros de entrada</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:grid;grid-template-columns:200px 1fr;gap:12px;padding-bottom:10px;border-bottom:1px solid #374151">
+              <div style="font-size:13px;font-weight:600;color:#f9fafb">Pensión inicial nominal</div>
+              <div style="font-size:13px;color:#9ca3af;line-height:1.6">Introduces el valor <em>nominal</em> que cobrará la SS en 2043 (ej. 2.027€), no el deflactado. El simulador lo revaloriza con el IPC cada año a partir de la jubilación.</div>
+            </div>
+            <div style="display:grid;grid-template-columns:200px 1fr;gap:12px;padding-bottom:10px;border-bottom:1px solid #374151">
+              <div style="font-size:13px;font-weight:600;color:#f9fafb">Salario + % gastos</div>
+              <div style="font-size:13px;color:#9ca3af;line-height:1.6">Los gastos = salario × %. El salario crece con trienios e incremento anual, así los gastos futuros son realistas.</div>
+            </div>
+            <div style="display:grid;grid-template-columns:200px 1fr;gap:12px;padding-bottom:10px;border-bottom:1px solid #374151">
+              <div style="font-size:13px;font-weight:600;color:#f9fafb">Tasa de retirada</div>
+              <div style="font-size:13px;color:#9ca3af;line-height:1.6"><span style="color:#f59e0b">4%</span> → cartera aguanta 30+ años históricamente. <span style="color:#00e5b0">3%</span> → probable que crezca y dejes herencia. <span style="color:#00e5b0">2%</span> → herencia casi garantizada.</div>
+            </div>
+            <div style="display:grid;grid-template-columns:200px 1fr;gap:12px;padding-bottom:10px;border-bottom:1px solid #374151">
+              <div style="font-size:13px;font-weight:600;color:#f9fafb">Herencia objetivo</div>
+              <div style="font-size:13px;color:#9ca3af;line-height:1.6">En euros de hoy. El simulador lo ajusta por inflación del escenario y marca ✓/✗ en cada hito.</div>
+            </div>
+            <div style="display:grid;grid-template-columns:200px 1fr;gap:12px">
+              <div style="font-size:13px;font-weight:600;color:#f9fafb">Rentabilidades nominales</div>
+              <div style="font-size:13px;color:#9ca3af;line-height:1.6">Introduce la rentabilidad bruta (ej. 8%). La inflación actúa por separado elevando el coste de vida — no reduce la rentabilidad directamente.</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#1f2937;border-radius:10px;padding:20px">
+          <div style="font-size:13px;font-weight:700;color:#00e5b0;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">⚡ FIRE anticipado — el puente</div>
+          <div style="font-size:14px;line-height:1.75;color:#d1d5db;margin-bottom:12px">Edad mínima para dejar de trabajar antes de los 67. Tu cartera debe cubrir los gastos desde la jubilación anticipada hasta que empieza la pensión. Cada año del puente los gastos suben con la inflación del escenario:</div>
+          <div style="background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:14px 18px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#00e5b0;line-height:2">
+            PV = C × (1+inf)/(1+r) × [1 − ((1+inf)/(1+r))ⁿ] / [1 − (1+inf)/(1+r)]
+          </div>
+        </div>
+
+        <div style="background:#1f2937;border-radius:10px;padding:20px">
+          <div style="font-size:13px;font-weight:700;color:#00e5b0;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🏛 Columnas de hitos (72a, 77a…)</div>
+          <div style="font-size:14px;line-height:1.75;color:#d1d5db;margin-bottom:10px">Patrimonio <strong style="color:#f9fafb">neto de retiros</strong> en cada hito de 5 años post-jubilación. Cada celda muestra:</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;gap:10px;font-size:13px"><span style="color:#00e5b0;flex-shrink:0">▸</span><span style="color:#9ca3af">Patrimonio total acumulado (ya descontados los retiros anuales)</span></div>
+            <div style="display:flex;gap:10px;font-size:13px"><span style="color:#00e5b0;flex-shrink:0">▸</span><span style="color:#9ca3af">Aportaciones propias · rendimientos del mercado (%)</span></div>
+            <div style="display:flex;gap:10px;font-size:13px"><span style="color:#00e5b0;flex-shrink:0">▸</span><span style="color:#9ca3af">Cartera + Pensión (+IPC) = renta mensual total</span></div>
+            <div style="display:flex;gap:10px;font-size:13px"><span style="color:#00e5b0;flex-shrink:0">▸</span><span style="color:#9ca3af">✓/✗ si se cubre el objetivo de herencia en ese momento</span></div>
+          </div>
+        </div>
+
+        <div style="background:#1f2937;border-radius:10px;padding:20px">
+          <div style="font-size:13px;font-weight:700;color:#00e5b0;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">📊 DCA y evolución salarial</div>
+          <div style="font-size:14px;line-height:1.75;color:#d1d5db;margin-bottom:12px">Durante la fase laboral el DCA crece cada año con el salario. Tras la jubilación se sustituye por la aportación post-jubilación (fija):</div>
+          <div style="background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:14px 18px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#00e5b0;line-height:2">
+            DCA_anual = (base + trienios) × (1 + inc_sal)ⁿ × 12<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + n_pagas × importe_paga × (1 + inc_sal)ⁿ
+          </div>
+        </div>
+
+        <div style="background:#1f2937;border-radius:10px;padding:20px">
+          <div style="font-size:13px;font-weight:700;color:#00e5b0;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🎁 Herencia posible (KPI)</div>
+          <div style="font-size:14px;line-height:1.75;color:#d1d5db">Patrimonio restante al final del horizonte tras haber retirado el % configurado cada año desde la jubilación. Se muestra en 3 niveles de rentabilidad con su equivalente en <strong style="color:#f9fafb">euros de hoy</strong> (deflactado con la inflación media). La inflación no afecta al valor nominal del patrimonio — solo a su poder adquisitivo.</div>
+        </div>
+
+        <div style="background:#1c1408;border:1px solid #78350f;border-radius:10px;padding:16px 20px;font-size:12px;color:#d97706;line-height:1.6">
+          ⚠ Este simulador es una herramienta orientativa. Las rentabilidades pasadas no garantizan rentabilidades futuras. Consulta un asesor financiero para decisiones importantes.
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 1. KPIs ── -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div style="font-size:12px;color:#8899aa;background:rgba(255,200,0,.06);border:1px solid rgba(255,200,0,.15);border-radius:8px;padding:10px 14px">Simulación proyectada · rentabilidades nominales · inflación eleva el objetivo</div>
+    <button onclick="document.getElementById('fire-help-modal').style.display='flex'" style="background:none;border:1px solid var(--bd);color:var(--mu2);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer">❓ Cómo funciona</button>
+  </div>
+  <div id="fire-kpis" style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px"></div>
+
+  <!-- ── 2. Tabla FIRE full width ── -->
+  <div class="panel" style="margin-bottom:16px">
+    <div class="ph"><span class="ph-t">Año de FIRE por escenario</span></div>
+    <div class="pb" style="overflow-x:auto"><div id="fire-tabla"></div></div>
+  </div>
+
+  <!-- ── 3. Gráfico full width ── -->
+  <div class="panel" style="margin-bottom:16px">
+    <div class="ph"><span class="ph-t">Proyección patrimonial</span><span id="fire-chart-legend" style="display:flex;gap:14px;font-size:11px;align-items:center;flex-wrap:wrap"></span></div>
+    <div class="pb"><canvas id="fire-chart" height="320"></canvas></div>
+  </div>
+
+  <!-- ── 4. Configuración colapsable ── -->
+  <div class="panel">
+    <div class="ph" onclick="fireToggleConfig()" style="cursor:pointer;user-select:none">
+      <span class="ph-t">⚙ Configuración</span>
+      <span id="fire-cfg-chevron" style="font-size:12px;color:var(--mu2);margin-left:auto">▼ editar parámetros</span>
+    </div>
+    <div id="fire-cfg-body" style="display:none">
+      <div class="pb">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+
+          <!-- Perfil -->
+          <div>
+            <div style="font-size:11px;color:var(--mu2);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:10px">👤 Perfil</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div class="fg"><label>Edad actual</label><input type="number" id="fire-edad" class="inp" min="18" max="70" oninput="fireCalc()"></div>
+              <div class="fg"><label>Edad jubilación pública</label><input type="number" id="fire-edad-jubilacion" class="inp" min="60" max="75" oninput="fireCalc()"></div>
+              <div class="fg"><label>Pensión inicial nominal (€/mes en 2043)</label><input type="number" id="fire-pension" class="inp" min="0" oninput="fireCalc()"></div>
+              <div class="fg"><label>Salario neto mensual (€)</label><input type="number" id="fire-salario" class="inp" min="0" oninput="fireCalc()"></div>
+              <div class="fg"><label>% gastos sobre salario</label><input type="number" id="fire-pct-gastos" class="inp" min="1" max="100" step="1" oninput="fireCalc()"></div>
+              <div class="fg"><label>Patrimonio inicial (€)</label><input type="number" id="fire-patrimonio" class="inp" value="" placeholder="Cargado de cartera" min="0" oninput="fireCalc()"></div>
+              <div class="fg"><label>Herencia objetivo (€ de hoy)</label><input type="number" id="fire-herencia" class="inp" placeholder="0 = sin objetivo" min="0" oninput="fireCalc()"></div>
+              <div class="fg"><label>Tasa de retirada (%/año)</label><input type="number" id="fire-tasa" class="inp" min="0.5" max="6" step="0.1" oninput="fireCalc()"></div>
+            </div>
+          </div>
+
+          <!-- DCA y carrera -->
+          <div>
+            <div style="font-size:11px;color:var(--mu2);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:10px">💰 DCA y carrera</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div class="fg"><label>Aportación mensual base (€)</label><input type="number" id="fire-dca" class="inp" min="0" oninput="fireCalc()"></div>
+              <div class="fg"><label>Aportación mensual post-jubilación (€)</label><input type="number" id="fire-dca-jub" class="inp" min="0" placeholder="0 = sin DCA post-jub" oninput="fireCalc()"></div>
+              <div class="fg"><label>Pagas extra al año</label><input type="number" id="fire-pagas" class="inp" min="0" max="4" oninput="fireCalc()"></div>
+              <div class="fg"><label>Importe paga extra (€)</label><input type="number" id="fire-paga-importe" class="inp" min="0" oninput="fireCalc()"></div>
+              <div class="fg"><label>Trienio: incremento c/3 años (€/mes)</label><input type="number" id="fire-trienio" class="inp" min="0" oninput="fireCalc()"></div>
+              <div class="fg"><label>Incremento salarial anual (%)</label><input type="number" id="fire-incremento-sal" class="inp" min="0" max="10" step="0.1" oninput="fireCalc()"></div>
+              <div class="fg"><label>Horizonte máximo (años)</label><input type="number" id="fire-horizonte" class="inp" min="10" max="60" oninput="fireCalc()"></div>
+            </div>
+          </div>
+
+          <!-- Escenarios -->
+          <div>
+            <div style="font-size:11px;color:var(--mu2);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:10px">📈 Escenarios</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:11px;color:var(--mu2)">Rentabilidad nominal anual (%)</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                <div class="fg"><label style="color:var(--red)">Pesimista</label><input type="number" id="fire-r-pes" class="inp" step="0.5" oninput="fireCalc()"></div>
+                <div class="fg"><label style="color:var(--yel)">Base</label><input type="number" id="fire-r-base" class="inp" step="0.5" oninput="fireCalc()"></div>
+                <div class="fg"><label style="color:var(--ac)">Optimista</label><input type="number" id="fire-r-opt" class="inp" step="0.5" oninput="fireCalc()"></div>
+              </div>
+              <div style="font-size:11px;color:var(--mu2);margin-top:4px">Inflación anual (%)</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div class="fg"><label style="color:var(--yel)">Baja</label><input type="number" id="fire-inf-baja" class="inp" step="0.5" oninput="fireCalc()"></div>
+                <div class="fg"><label style="color:var(--red)">Alta</label><input type="number" id="fire-inf-alta" class="inp" step="0.5" oninput="fireCalc()"></div>
+              </div>
+              <div style="font-size:11px;color:var(--mu);margin-top:4px;line-height:1.5">Rentabilidades nominales — la inflación reduce el objetivo real.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Guardar -->
+        <div style="display:flex;align-items:center;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--bd)">
+          <button class="bp" id="fire-save-btn" onclick="fireSave()" style="background:var(--ac);color:#000">💾 Guardar configuración</button>
+          <span id="fire-save-msg" style="font-size:12px;color:var(--ac);display:none">✓ Guardado</span>
+          <span style="font-size:12px;color:#8899aa;background:rgba(255,200,0,.06);border:1px solid rgba(255,200,0,.15);border-radius:8px;padding:10px 14px">Los parámetros se guardan en el servidor y se restauran automáticamente</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════ ACCIONES ══════════════════════════════════════════ -->
+
+<!-- ACCIONES · DASHBOARD -->
+<div id="view-acciones-dashboard" class="view">
+  <div class="krow" id="a-kd"></div>
+  <div class="gdb">
+    <div class="panel">
+      <div class="ph"><span class="ph-t">G/P por posición abierta</span></div>
+      <div class="pb"><canvas id="c-gl-a-dash" height="190"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="ph-t">Distribución acciones/ETF</span></div>
+      <div class="pb" style="display:flex;flex-direction:column;align-items:center">
+        <canvas id="c-pie-a" width="200" height="155"></canvas>
+        <div id="pie-lbl-a" style="width:100%;margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ph"><span class="ph-t">Resumen posiciones</span><span id="a-summary-date" style="font-size:11px;color:var(--mu2);margin-left:8px"></span></div>
+    <div class="tw"><table><thead><tr>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Ticker</th><th class="sortable" data-col="1" onclick="sortTable(this)">Nombre</th><th class="sortable" data-col="2" onclick="sortTable(this)">Tipo</th><th class="sortable" data-col="3" onclick="sortTable(this)">ISIN</th><th class="sortable" data-col="4" onclick="sortTable(this)">Títulos</th><th class="sortable" data-col="5" onclick="sortTable(this)">Coste adq.</th><th class="sortable" data-col="6" onclick="sortTable(this)">Valor mercado</th><th class="sortable" data-col="7" onclick="sortTable(this)">Plus/Minus €</th><th class="sortable" data-col="8" onclick="sortTable(this)">Plus/Minus %</th>
+    </tr></thead><tbody id="a-tb-summary"></tbody></table></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><span class="ph-t">Dividendos cobrados</span><span id="a-divid-badge"></span></div>
+    <div class="pb" id="a-divid-list"></div>
+  </div>
+</div>
+
+<!-- ACCIONES · CARTERA -->
+<div id="view-acciones-cartera" class="view">
+  <div class="panel">
+    <div class="ph"><span class="ph-t">Posiciones abiertas — Acciones &amp; ETF</span><span id="a-b-pos"></span></div>
+    <div class="tw"><table><thead><tr>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Ticker</th><th class="sortable" data-col="1" onclick="sortTable(this)">Nombre</th><th class="sortable" data-col="2" onclick="sortTable(this)">Tipo</th><th class="sortable" data-col="3" onclick="sortTable(this)">Títulos</th><th class="sortable" data-col="4" onclick="sortTable(this)">Coste medio</th><th class="sortable" data-col="5" onclick="sortTable(this)">Precio actual</th><th class="sortable" data-col="6" onclick="sortTable(this)">Actualizado</th><th class="sortable" data-col="7" onclick="sortTable(this)">Valor €</th><th class="sortable" data-col="8" onclick="sortTable(this)">G/P €</th><th class="sortable" data-col="9" onclick="sortTable(this)">G/P %</th>
+    </tr></thead><tbody id="a-tb-cartera"></tbody></table></div>
+  </div>
+  <div class="panel" style="margin-top:4px">
+    <div class="ph"><span class="ph-t">Posiciones cerradas (historial)</span></div>
+    <div class="tw"><table><thead><tr>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Ticker</th><th class="sortable" data-col="1" onclick="sortTable(this)">Nombre</th><th class="sortable" data-col="2" onclick="sortTable(this)">Tipo</th><th class="sortable" data-col="3" onclick="sortTable(this)">Compras</th><th class="sortable" data-col="4" onclick="sortTable(this)">Ventas</th><th class="sortable" data-col="5" onclick="sortTable(this)">Resultado</th>
+    </tr></thead><tbody id="a-tb-closed"></tbody></table></div>
+  </div>
+</div>
+
+<!-- ACCIONES · OPERACIONES -->
+<div id="view-acciones-ops" class="view">
+  <div class="tbar">
+    <button class="bp pur" id="a-btn-form" onclick="toggleForm('a')">+ Nueva operación</button>
+  </div>
+  <div id="a-op-form" class="panel" style="display:none;margin-bottom:14px">
+    <div class="ph"><span class="ph-t">Nueva Operación — Acción/ETF</span></div>
+    <div class="pb">
+      <div class="fgrid">
+        <div class="fg"><label>Tipo *</label><select id="af-type" class="inp"><option value="compra">Compra</option><option value="venta">Venta</option><option value="dividendo">Dividendo</option></select></div>
+        <div class="fg"><label>Ticker *</label><input id="af-ticker" class="inp" placeholder="BNP" oninput="autoFillAccion('af-ticker','af-name','af-isin','af-asset','af-divisa')"></div>
+        <div class="fg"><label>ISIN</label><input id="af-isin" class="inp" readonly style="color:var(--mu2)"></div>
+        <div class="fg"><label>Nombre</label><input id="af-name" class="inp"></div>
+        <div class="fg"><label>Clase</label><select id="af-asset" class="inp"><option>Acción</option><option>ETF</option></select></div>
+        <div class="fg"><label>Fecha *</label><input id="af-date" type="date" class="inp"></div>
+        <div class="fg"><label>Títulos *</label><input id="af-qty" type="number" class="inp" step="any"></div>
+        <div class="fg"><label>Precio *</label><input id="af-price" type="number" class="inp" step="any"></div>
+        <div class="fg"><label>Divisa</label><select id="af-divisa" class="inp" onchange="afToggleFxField()"><option>EUR</option><option>USD</option><option>GBP</option><option>CHF</option></select></div>
+        <div class="fg"><label>Comisión (€)</label><input id="af-comm" type="number" class="inp" step="any"></div>
+      </div>
+      <!-- Campo FX exacto — visible solo cuando divisa ≠ EUR -->
+      <div id="af-fx-wrap" style="display:none;margin-top:10px;padding:12px 14px;background:rgba(245,200,66,.07);border:1px solid rgba(245,200,66,.35);border-radius:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--yel);margin-bottom:8px">
+          ⚠ Operación en divisa extranjera — introduce el importe EUR exacto del broker
+        </div>
+        <div style="font-size:11px;color:var(--mu2);margin-bottom:10px;line-height:1.6">
+          El XLS solo contiene el importe en divisa original. El broker aplica su propio tipo de cambio
+          que puede diferir del calculado automáticamente. Consúltalo en el detalle de la operación
+          de Inversis (campo <strong style="color:var(--text)">«Neto EUR»</strong> o <strong style="color:var(--text)">«Tipo cambio div. cliente»</strong>).
+        </div>
+        <div class="fgrid" style="grid-template-columns:1fr 1fr;gap:10px">
+          <div class="fg">
+            <label>Importe EUR exacto del broker <span style="color:var(--yel)">*</span></label>
+            <input id="af-importe-eur" type="number" class="inp" step="any" placeholder="ej: 250.32"
+              style="border-color:rgba(245,200,66,.5)" title="Neto en EUR tal como aparece en el extracto del broker">
+          </div>
+          <div class="fg">
+            <label style="color:var(--mu2)">Tipo de cambio aplicado</label>
+            <input id="af-fx-rate" type="number" class="inp" step="any" placeholder="ej: 0.9585671"
+              style="color:var(--mu2)" title="Opcional — solo informativo. Se calcula de importe / precio_usd"
+              readonly>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--mu);margin-top:6px">
+          Si no tienes el dato ahora, puedes dejarlo vacío y el sistema usará el FX del BCE.
+          Podrás corregirlo después editando la operación (icono ✎ en la tabla).
+        </div>
+      </div>
+      <div id="af-err" class="err" style="display:none"></div>
+      <div style="display:flex;gap:10px;margin-top:12px;align-items:center">
+        <button class="bp pur" onclick="saveOp('a')">&#128190; Guardar</button>
+        <span id="af-saving" style="font-size:12px;color:var(--mu2);display:none">Guardando…</span>
+      </div>
+    </div>
+  </div>
+  <div class="tbar" style="gap:6px">
+    <button class="bs" onclick="filterOpsA('all')" id="aof-all" style="border-color:var(--pur);color:var(--pur)">Todos</button>
+    <button class="bs" onclick="filterOpsA('compra')" id="aof-compra">Compras</button>
+    <button class="bs" onclick="filterOpsA('venta')" id="aof-venta">Ventas</button>
+    <button class="bs" onclick="filterOpsA('dividendo')" id="aof-div">Dividendos</button>
+  </div>
+  <div class="panel">
+    <div class="ph"><span class="ph-t">Historial — Acciones &amp; ETF</span><span id="a-b-ops"></span></div>
+    <div class="tw"><table><thead><tr>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Tipo</th><th class="sortable" data-col="1" onclick="sortTable(this)">Ticker</th><th class="sortable" data-col="2" onclick="sortTable(this)">Nombre</th><th class="sortable" data-col="3" onclick="sortTable(this)">Clase</th><th class="sortable" data-col="4" onclick="sortTable(this)">Fecha</th><th class="sortable" data-col="5" onclick="sortTable(this)">Títulos</th><th class="sortable" data-col="6" onclick="sortTable(this)">Precio</th><th class="sortable" data-col="7" onclick="sortTable(this)">Divisa</th><th style="color:var(--mu2);font-size:10px;white-space:nowrap" title="Equivalente EUR (solo ops en divisa extranjera)">≈ EUR</th><th class="sortable" data-col="9" onclick="sortTable(this)">Total</th><th></th>
+    </tr></thead><tbody id="a-tb-ops"></tbody></table></div>
+  </div>
+</div>
+
+<!-- ACCIONES · ANÁLISIS -->
+<div id="view-acciones-analisis" class="view">
+  <div class="krow" id="a-ka"></div>
+  <div class="g2">
+    <div class="panel"><div class="ph"><span class="ph-t">G/P posiciones abiertas</span></div><div class="pb"><canvas id="c-gl-a" height="200"></canvas></div></div>
+    <div class="panel"><div class="ph"><span class="ph-t">Ranking rentabilidad</span></div><div class="pb" id="a-ranking"></div></div>
+  </div>
+  <div class="g2" style="margin-top:0">
+    <div class="panel">
+      <div class="ph"><span class="ph-t">Dividendos por ticker</span></div>
+      <div class="pb"><canvas id="c-divid" height="160"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="ph-t">Operaciones cerradas — resultado</span></div>
+      <div class="pb" id="a-closed-analysis"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ACCIONES · FISCAL -->
+<div id="view-acciones-fiscal" class="view">
+  <div class="krow" id="a-kfis"></div>
+  <div class="g2" style="margin-bottom:16px">
+    <div class="panel"><div class="ph"><span class="ph-t">Plusvalías realizadas por año</span></div><div class="pb" id="a-years"></div></div>
+    <div class="panel"><div class="ph"><span class="ph-t">Dividendos cobrados por año</span></div><div class="pb" id="a-divid-years"></div></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><span class="ph-t">Detalle ventas realizadas</span></div>
+    <div class="tw"><table><thead><tr>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Fecha</th><th class="sortable" data-col="1" onclick="sortTable(this)">Activo</th><th class="sortable" data-col="2" onclick="sortTable(this)">Títulos</th><th class="sortable" data-col="3" onclick="sortTable(this)">Precio venta</th><th class="sortable" data-col="4" onclick="sortTable(this)">Divisa</th><th class="sortable" data-col="5" onclick="sortTable(this)">Importe</th><th style="color:var(--mu2);font-size:10px;white-space:nowrap" title="Equivalente EUR">≈ EUR</th><th style="color:var(--ac);font-size:10px;white-space:nowrap" title="Ganancia/pérdida FIFO en EUR">G/P FIFO</th><th style="color:var(--mu2);font-size:10px;white-space:nowrap" title="Coste base FIFO en EUR">Coste base</th>
+    </tr></thead><tbody id="a-tb-ventas"></tbody></table></div>
+  </div>
+  <div class="panel" style="margin-top:16px">
+    <div class="ph"><span class="ph-t">Dividendos cobrados · detalle</span></div>
+    <div class="tw"><table><thead><tr>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Fecha</th><th class="sortable" data-col="1" onclick="sortTable(this)">Año</th><th class="sortable" data-col="2" onclick="sortTable(this)">Activo</th><th class="sortable" data-col="3" onclick="sortTable(this)">Cantidad</th><th class="sortable" data-col="4" onclick="sortTable(this)">Divid/título</th><th class="sortable" data-col="5" onclick="sortTable(this)">Divisa</th><th class="sortable" data-col="6" onclick="sortTable(this)">Total bruto</th><th style="color:var(--mu2);font-size:10px;white-space:nowrap" title="Equivalente EUR">≈ EUR</th>
+    </tr></thead><tbody id="a-tb-divid"></tbody></table></div>
+  </div>
+</div>
+
+
+
+<!-- RESUMEN · IMPORTAR DATOS -->
+<div class="view" id="view-resumen-importar">
+  <div style="max-width:680px;margin:0 auto">
+
+    <div class="panel" style="margin-bottom:20px">
+      <div class="ph"><span class="ph-t">📥 Importar datos desde Inversis</span></div>
+      <div class="pb" style="padding:24px">
+        <p style="font-size:13px;color:var(--mu2);margin-bottom:20px;line-height:1.7">
+          Descarga el <strong style="color:var(--text)">Resumen de Operaciones</strong> de tu cuenta en Inversis
+          (formato <code style="background:var(--s2);padding:2px 6px;border-radius:4px">.XLS</code>) y
+          selecciónalo aquí. La app clasificará automáticamente cada operación como
+          <strong style="color:var(--fondos)">Fondo</strong> o
+          <strong style="color:var(--acciones)">Acción/ETF</strong> y la incorporará al sitio correcto.
+          Las operaciones ya existentes no se duplicarán.
+        </p>
+
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <label id="xls-import-btn" style="cursor:pointer;display:inline-flex;align-items:center;gap:10px;background:var(--ac);color:#000;border-radius:12px;padding:14px 28px;font-weight:800;font-size:14px;letter-spacing:.02em;transition:opacity .15s">
+            📥 Seleccionar fichero XLS Inversis
+            <input type="file" accept=".xls,.xlsx,.html,.htm" style="display:none" onchange="importXLSInversisUnificado(this)">
+          </label>
+          <div id="xls-import-status" style="font-size:13px;color:var(--mu2);min-height:20px;text-align:center"></div>
+        </div>
+
+        <div id="xls-import-result" style="display:none;margin-top:20px;border-radius:12px;padding:16px;background:var(--s2);border:1px solid var(--bd)">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu2);margin-bottom:10px">Resultado de la importación</div>
+          <div id="xls-import-detail" style="font-size:13px;line-height:1.8"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><span class="ph-t">ℹ Cómo obtener el fichero desde Inversis</span></div>
+      <div class="pb" style="padding:20px 24px">
+        <ol style="font-size:13px;color:var(--mu2);line-height:2;padding-left:18px">
+          <li>Entra en tu cuenta de <strong style="color:var(--text)">Inversis</strong></li>
+          <li>Ve a <strong style="color:var(--text)">Mi cartera → Movimientos / Operaciones</strong></li>
+          <li>Selecciona el rango de fechas que quieras importar</li>
+          <li>Pulsa <strong style="color:var(--text)">Exportar → Excel (.XLS)</strong></li>
+          <li>Sube el fichero descargado usando el botón de arriba</li>
+        </ol>
+        <p style="font-size:12px;color:var(--mu);margin-top:12px;padding-top:12px;border-top:1px solid var(--bd)">
+          ⚡ Puedes importar el mismo fichero varias veces — las operaciones ya existentes se omiten automáticamente.
+        </p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ RESUMEN GLOBAL ═══════════════════════════════════════════ -->
+<div class="view" id="view-resumen-dashboard">
+
+  <!-- KPIs -->
+  <div id="rg-kd"></div>
+
+  <!-- Evolución + Composición -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px">
+    <div class="panel">
+      <div class="ph"><span class="ph-t">📈 Evolución de aportaciones</span></div>
+      <div class="pb" style="position:relative;height:200px">
+        <canvas id="rg-evolucion" style="display:block"></canvas>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="ph-t">🥧 Composición</span></div>
+      <div class="pb">
+        <canvas id="rg-pie" height="180"></canvas>
+        <div id="rg-pie-legend" style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;font-size:11px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla activos + G/P barras -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px">
+    <div class="panel">
+      <div class="ph"><span class="ph-t">🧾 Desglose por activo</span></div>
+      <div class="pb">
+        <div class="tw"><table><thead><tr>
+          <th style="cursor:pointer" onclick="_activosSetSort('ticker')" title="Ordenar por activo">Activo <span id="_as-ticker" style="font-size:9px;opacity:.5">⇅</span></th><th style="cursor:pointer;text-align:right" onclick="_activosSetSort('inv')" title="Ordenar por invertido">Invertido <span id="_as-inv" style="font-size:9px;opacity:.5">⇅</span></th><th style="cursor:pointer;text-align:right" onclick="_activosSetSort('val')" title="Ordenar por valor">Valor actual <span id="_as-val" style="font-size:9px">↓</span></th><th style="cursor:pointer;text-align:right" onclick="_activosSetSort('gl')" title="Ordenar por G/P €">G/P € <span id="_as-gl" style="font-size:9px;opacity:.5">⇅</span></th><th style="cursor:pointer;text-align:right" onclick="_activosSetSort('glp')" title="Ordenar por G/P %">G/P % <span id="_as-glp" style="font-size:9px;opacity:.5">⇅</span></th><th style="cursor:pointer;text-align:right" onclick="_activosSetSort('peso')" title="Ordenar por peso">Peso <span id="_as-peso" style="font-size:9px;opacity:.5">⇅</span></th>
+        </tr></thead><tbody id="rg-tb-cat"></tbody></table></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="ph-t">📊 G/P por activo</span></div>
+      <div class="pb"><canvas id="rg-bars"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Fiscal -->
+  <div class="panel">
+    <div class="ph"><span class="ph-t">🏛️ Estimación fiscal IRPF 2024</span></div>
+    <div class="pb"><div id="rg-fiscal"></div></div>
+  </div>
+
+</div>
+
+</div><!-- #wrap -->
+
+<script src="portafolio.js"></script>
+<script>
+// Carga data.json y arranca la aplicación
+
+// Hash de fallback — solo se usa si data.json no tiene meta.auth_hash
+var AUTH_HASH  = 'b920988cc2ef76ff726fa53d13598502215935543361aa7557fb984905434a46';
+var SESSION_KEY = 'pf_auth';
+var _dataCache  = null;  // data.json cacheado desde el arranque
+
+async function sha256(str) {
+  var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+}
+
+async function doLogin() {
+  var user = document.getElementById('l-user').value.trim();
+  var pass = document.getElementById('l-pass').value;
+  var hash = await sha256(user + ':' + pass);
+  if (hash === AUTH_HASH) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    document.getElementById('login-screen').style.display = 'none';
+    // data.json ya está cargado — pasar directamente a init()
+    document.getElementById('loading').style.display = 'flex';
+    init(_dataCache);
+    document.getElementById('loading').style.display = 'none';
+  } else {
+    document.getElementById('login-err').textContent = 'Usuario o contraseña incorrectos';
+    document.getElementById('l-pass').value = '';
+    document.getElementById('l-pass').focus();
+  }
+}
+
+function checkAuth() {
+  return sessionStorage.getItem(SESSION_KEY) === '1';
+}
+
+function initApp() {
+  document.getElementById('loading').style.display = 'flex';
+  init(_dataCache);
+  document.getElementById('loading').style.display = 'none';
+}
+
+// Arranque: cargar data.json PRIMERO para obtener el hash correcto
+fetch('data.json')
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    _dataCache = data;
+    // Actualizar hash desde data.json si existe
+    if (data.meta && data.meta.auth_hash) AUTH_HASH = data.meta.auth_hash;
+    // Si ya hay sesión activa, arrancar directamente
+    if (checkAuth()) {
+      initApp();
+    } else {
+      // Mostrar login (ya teníamos la pantalla visible por defecto)
+    }
+  })
+  .catch(function(err) {
+    document.getElementById('loading').innerHTML =
+      '<span style="color:var(--red);font-size:13px">⚠ Error al cargar data.json</span>';
+    console.error('Error cargando data.json:', err);
+  });
+
+</script>
+
+<!-- Fund Perf Modal -->
+
+<!-- ═══════════════════════════════ DESINVERSIÓN ═══════════════════════════════ -->
+
+<!-- DESINVERSIÓN · OPTIMIZADOR -->
+<div id="view-desinversion-optimizador" class="view">
+  <div style="max-width:740px;margin:0 auto">
+
+    <!-- Bloque 1: situación fiscal -->
+    <div id="dv-fiscal-ytd" style="margin-bottom:16px"></div>
+
+    <!-- Bloque 2: input importe -->
+    <div class="panel" style="padding:20px 24px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:12px">¿Cuánto necesitas obtener?</div>
+      <div style="display:flex;align-items:flex-end;gap:12px">
+        <div class="fg" style="max-width:220px">
+          <label>Importe neto objetivo (€)</label>
+          <input id="dv-need" type="number" class="inp" placeholder="2000" step="100" oninput="debouncedOptimizador()">
+        </div>
+      </div>
+    </div>
+
+    <!-- Bloque 3: plan -->
+    <div id="dv-opt-result"></div>
+
+  </div>
+</div>
+
+<!-- DESINVERSIÓN · METAS -->
+<div id="view-desinversion-metas" class="view">
+  <div style="max-width:900px;margin:0 auto">
+    <div class="panel" style="margin-bottom:16px;padding:20px 24px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:16px">Metas de ahorro con fecha</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <div>
+          <div style="font-size:12px;color:var(--mu2);margin-bottom:10px">Universidad — cerca de casa</div>
+          <div class="fg"><label>Importe total (€)</label><input id="mt-univ-cerca" type="number" class="inp" value="20000" step="1000" oninput="debouncedMetas()"></div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--mu2);margin-bottom:10px">Universidad — fuera de casa</div>
+          <div class="fg"><label>Importe total (€)</label><input id="mt-univ-fuera" type="number" class="inp" value="60000" step="1000" oninput="debouncedMetas()"></div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--mu2);margin-bottom:10px">Parámetros comunes</div>
+          <div class="fg"><label>Año inicio universidad</label><input id="mt-año-inicio" type="number" class="inp" value="2036" step="1" oninput="debouncedMetas()"></div>
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <div class="fg" style="width:100%"><label>Rentabilidad anual esperada (%)</label><input id="mt-rent" type="number" class="inp" value="6" step="0.5" oninput="debouncedMetas()"></div>
+        </div>
+      </div>
+    </div>
+    <div id="dv-metas-result"></div>
+  </div>
+</div>
+
+<!-- DESINVERSIÓN · JUBILACIÓN -->
+<div id="view-desinversion-jubilacion" class="view">
+  <div style="max-width:1000px;margin:0 auto">
+    <div class="panel" style="margin-bottom:16px;padding:20px 24px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:16px">Parámetros jubilación &amp; herencia</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+        <div class="fg"><label>Edad actual</label><input id="jb-edad" type="number" class="inp" value="40" oninput="debouncedJubilacion()"></div>
+        <div class="fg"><label>Edad jubilación</label><input id="jb-jub" type="number" class="inp" value="67" oninput="debouncedJubilacion()"></div>
+        <div class="fg"><label>Pensión estimada (€/mes)</label><input id="jb-pension" type="number" class="inp" value="1500" step="50" oninput="debouncedJubilacion()"></div>
+        <div class="fg"><label>Gasto mensual jubilación (€)</label><input id="jb-gasto" type="number" class="inp" value="2500" step="50" oninput="debouncedJubilacion()"></div>
+        <div class="fg"><label>Rentabilidad cartera (%/año)</label><input id="jb-rent" type="number" class="inp" value="5" step="0.5" oninput="debouncedJubilacion()"></div>
+        <div class="fg"><label>Inflación estimada (%/año)</label><input id="jb-inf" type="number" class="inp" value="2.5" step="0.5" oninput="debouncedJubilacion()"></div>
+        <div class="fg"><label>Aportación mensual hasta jub. (€)</label><input id="jb-dca" type="number" class="inp" value="300" step="50" oninput="debouncedJubilacion()"></div>
+        <div class="fg"><label>Objetivo herencia mínimo (€)</label><input id="jb-herencia" type="number" class="inp" value="100000" step="5000" oninput="debouncedJubilacion()"></div>
+        <div class="fg"><label>Esperanza de vida</label><input id="jb-vida" type="number" class="inp" value="88" oninput="debouncedJubilacion()"></div>
+      </div>
+    </div>
+    <div id="dv-jub-result"></div>
+  </div>
+</div>
+
+<div id="fund-perf-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:#060d18ee;backdrop-filter:blur(4px);flex-direction:column;padding:24px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <span style="color:#dde6f0;font:600 15px sans-serif">Rendimiento por fondo</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div id="fund-perf-modal-periods" style="display:flex;gap:4px">
+        <button class="fp-btn active" data-period="max" onclick="FUND_PERF_PERIOD('max')">Max</button>
+        <button class="fp-btn" data-period="ytd" onclick="FUND_PERF_PERIOD('ytd')">YTD</button>
+        <button class="fp-btn" data-period="1y"  onclick="FUND_PERF_PERIOD('1y')">1A</button>
+        <button class="fp-btn" data-period="6m"  onclick="FUND_PERF_PERIOD('6m')">6M</button>
+        <button class="fp-btn" data-period="3m"  onclick="FUND_PERF_PERIOD('3m')">3M</button>
+        <button class="fp-btn" data-period="1m"  onclick="FUND_PERF_PERIOD('1m')">1M</button>
+      </div>
+      <button class="fp-btn" onclick="FUND_PERF_EXPAND()" style="padding:3px 7px;font-size:13px">✕</button>
+    </div>
+  </div>
+  <canvas id="c-fund-perf-modal" style="flex:1;width:100%"></canvas>
+  <div class="cleg" id="fund-perf-legend-modal" style="margin-top:10px"></div>
+</div>
+
+<!-- MODAL CONFIGURACIÓN -->
+<div id="cfg-modal" onclick="if(event.target===this)closeCfg()">
+  <div id="cfg-box">
+    <h2>⚙ Configuración</h2>
+
+    <!-- CREDENCIALES -->
+    <div class="cfg-section">
+      <div class="cfg-section-title">Cambiar credenciales de acceso</div>
+      <div class="cfg-row">
+        <span class="cfg-label">Nuevo usuario</span>
+        <input class="cfg-inp" type="text" id="cfg-user" autocomplete="username" placeholder="usuario">
+      </div>
+      <div class="cfg-row">
+        <span class="cfg-label">Nueva contraseña</span>
+        <input class="cfg-inp" type="password" id="cfg-pass" autocomplete="new-password" placeholder="••••••••">
+      </div>
+      <div class="cfg-row">
+        <span class="cfg-label">Confirmar contraseña</span>
+        <input class="cfg-inp" type="password" id="cfg-pass2" autocomplete="new-password" placeholder="••••••••"
+          onkeydown="if(event.key===\'Enter\')saveCfg()">
+      </div>
+    </div>
+
+    <div id="cfg-msg"></div>
+
+    <div class="cfg-btn-row" style="margin-bottom:20px">
+      <button class="cfg-btn secondary" onclick="closeCfg()">Cancelar</button>
+      <button class="cfg-btn primary" onclick="saveCfg()">Guardar cambios</button>
+    </div>
+
+    <!-- ZONA PELIGROSA -->
+    <div class="cfg-reset-zone">
+      <div class="cfg-section-title">⚠ Zona de peligro</div>
+      <div id="cfg-reset-steps">
+
+        <!-- PASO 0: aviso inicial -->
+        <div class="active">
+          <div class="cfg-warning-txt">
+            Elimina <strong>todas las posiciones, operaciones, precios históricos y datos de cartera</strong>.
+            La app quedará vacía y lista para un nuevo usuario.
+            Esta acción <strong>no se puede deshacer</strong>.
+          </div>
+          <button class="cfg-btn danger" style="width:100%" onclick="resetStep(1)">
+            🗑 Vaciar todos los datos
+          </button>
+        </div>
+
+        <!-- PASO 1: confirmación escribiendo BORRAR -->
+        <div>
+          <div class="cfg-warning-icon">⚠️</div>
+          <div class="cfg-warning-txt">
+            Se borrarán <strong>permanentemente</strong>:<br>
+            · Todas las posiciones de fondos y acciones<br>
+            · Todo el historial de operaciones<br>
+            · Precios históricos y benchmarks<br>
+            · Configuración FIRE y rebalanceo<br><br>
+            Para continuar escribe <strong>BORRAR</strong> en el campo:
+          </div>
+          <input class="cfg-confirm-inp" type="text" id="cfg-confirm-word"
+            placeholder="Escribe BORRAR para confirmar"
+            oninput="document.getElementById(&quot;cfg-reset-btn&quot;).disabled = this.value !== &quot;BORRAR&quot;"
+            onkeydown="if(event.key===&quot;Enter&quot; && this.value===&quot;BORRAR&quot;)doReset()">
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="cfg-btn secondary" style="flex:1" onclick="resetStep(0)">← Atrás</button>
+            <button class="cfg-btn danger" id="cfg-reset-btn" style="flex:2" disabled onclick="doReset()">
+              Confirmar borrado
+            </button>
+          </div>
+        </div>
+
+        <!-- PASO 2: progreso / resultado -->
+        <div>
+          <div class="cfg-warning-icon" id="cfg-reset-icon">⏳</div>
+          <div class="cfg-warning-txt" id="cfg-reset-result" style="text-align:center;margin-bottom:12px"></div>
+          <button class="cfg-btn secondary" id="cfg-reset-close" style="width:100%;display:none" onclick="closeCfg()">Cerrar</button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

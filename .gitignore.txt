@@ -1,0 +1,18 @@
+# Base de datos con datos financieros personales — NUNCA subir
+data.json
+
+# Backups automáticos del servidor
+*.bak
+*.pre-reset.*.bak
+data.json.*.bak
+
+# Logs PHP
+*.log
+error_log
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+*.swp
