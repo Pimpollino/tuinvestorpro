@@ -37,6 +37,15 @@ Aplicación web de gestión de cartera de inversión personal, diseñada para in
 
 ---
 
+
+## 📸 Capturas
+
+**Resumen Global — KPIs consolidados, evolución patrimonial y composición**
+![Resumen Global](screenshots/screenshot_resumen.png)
+
+**Acciones & ETF — Dashboard con G/P por posición y distribución**
+![Acciones Dashboard](screenshots/screenshot_acciones.png)
+
 ## 🗂️ Estructura de ficheros
 
 ```
