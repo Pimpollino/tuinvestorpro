@@ -112,3 +112,41 @@
 ### Benchmark
 - Configuración de índices activos persiste en `data.json` (`bench_config`)
 - Nuevos índices: MSCI World, IBEX 35, Euro Stoxx 50, Oro, Nasdaq 100
+
+## v1.5.0 — Resumen Global & UX
+
+### KPIs Resumen Global
+- Nuevo orden: Valor cartera · G/P Latente · G/P Realizada+Dividendos · **G/P Histórica** (nuevo: latente+realiz.+div.) · G/P Histórica total · Fiscal realizado
+- Eliminado KPI "Desde el origen" (redundante con G/P Histórica total)
+- Eliminado panel fiscal del Resumen Global (ver Análisis → Fiscal)
+- Cabecera: añadido % de ganancia junto a Fondos y Acciones (`+69,71 € · +1.4%`)
+- Grid KPIs: 6 columnas
+
+### Evolución patrimonial (Opción C)
+- Dos líneas: capital aportado acumulado (verde) + punto valor actual hoy (lila/rojo)
+- Línea vertical discontinua entre ambos puntos muestra la G/P
+- Leyenda con ambos indicadores
+- Tooltip hover con capital, valor hoy y diferencia en el último punto
+- Título cambiado de "Evolución de aportaciones" a "Evolución patrimonial"
+
+### Composición (tarta)
+- Tarta centrada
+- Leyenda rediseñada: nombre completo · peso% · G/P% · valor€ (sin ISINs ni texto partido)
+- **Tooltip al hover** en cada porción: nombre, peso%, valor€, G/P€ y G/P%
+- Tooltip activo también en tartas de Fondos y Acciones
+
+### Desglose por activo
+- Eliminado badge ticker redundante (ISIN o nombre corto). Solo tipo Fondo/Acción como píldora
+
+### Distribución fondos / Distribución acciones
+- Leyenda rediseñada: nombre completo una línea · peso% · G/P% · valor€
+- Misma mejora aplicada a ambas secciones
+
+### Acciones — tablas
+- Columna TICKER eliminada de: Resumen posiciones, Posiciones abiertas, Posiciones cerradas, Dividendos cobrados
+- Si hay Yahoo ticker real configurado aparece como badge pequeño junto al nombre
+- Añadido panel ⚙ Yahoo Tickers para acciones en Cartera → Acciones → Posiciones (mismo diseño que fondos)
+- Headers de tablas actualizados
+
+### Modal carga
+- Solo se ejecuta si el usuario está autenticado (no antes del login)

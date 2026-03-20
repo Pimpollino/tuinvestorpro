@@ -732,7 +732,7 @@ th.sort-desc::after { content:' ↓'; opacity:1; color:var(--ac); }
   <div class="panel">
     <div class="ph"><span class="ph-t">Resumen posiciones</span><span id="a-summary-date" style="font-size:11px;color:var(--mu2);margin-left:8px"></span></div>
     <div class="tw"><table><thead><tr>
-      <th class="sortable" data-col="0" onclick="sortTable(this)">Ticker</th><th class="sortable" data-col="1" onclick="sortTable(this)">Nombre</th><th class="sortable" data-col="2" onclick="sortTable(this)">Tipo</th><th class="sortable" data-col="3" onclick="sortTable(this)">ISIN</th><th class="sortable" data-col="4" onclick="sortTable(this)">Títulos</th><th class="sortable" data-col="5" onclick="sortTable(this)">Coste adq.</th><th class="sortable" data-col="6" onclick="sortTable(this)">Valor mercado</th><th class="sortable" data-col="7" onclick="sortTable(this)">Plus/Minus €</th><th class="sortable" data-col="8" onclick="sortTable(this)">Plus/Minus %</th>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Nombre</th><th class="sortable" data-col="1" onclick="sortTable(this)">Tipo</th><th class="sortable" data-col="2" onclick="sortTable(this)">ISIN</th><th class="sortable" data-col="3" onclick="sortTable(this)">Títulos</th><th class="sortable" data-col="4" onclick="sortTable(this)">Coste adq.</th><th class="sortable" data-col="5" onclick="sortTable(this)">Valor mercado</th><th class="sortable" data-col="6" onclick="sortTable(this)">Plus/Minus €</th><th class="sortable" data-col="7" onclick="sortTable(this)">Plus/Minus %</th>
     </tr></thead><tbody id="a-tb-summary"></tbody></table></div>
   </div>
   <div class="panel">
@@ -746,15 +746,17 @@ th.sort-desc::after { content:' ↓'; opacity:1; color:var(--ac); }
   <div class="panel">
     <div class="ph"><span class="ph-t">Posiciones abiertas — Acciones &amp; ETF</span><span id="a-b-pos"></span></div>
     <div class="tw"><table><thead><tr>
-      <th class="sortable" data-col="0" onclick="sortTable(this)">Ticker</th><th class="sortable" data-col="1" onclick="sortTable(this)">Nombre</th><th class="sortable" data-col="2" onclick="sortTable(this)">Tipo</th><th class="sortable" data-col="3" onclick="sortTable(this)">Títulos</th><th class="sortable" data-col="4" onclick="sortTable(this)">Coste medio</th><th class="sortable" data-col="5" onclick="sortTable(this)">Precio actual</th><th class="sortable" data-col="6" onclick="sortTable(this)">Actualizado</th><th class="sortable" data-col="7" onclick="sortTable(this)">Valor €</th><th class="sortable" data-col="8" onclick="sortTable(this)">G/P €</th><th class="sortable" data-col="9" onclick="sortTable(this)">G/P %</th>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Nombre</th><th class="sortable" data-col="1" onclick="sortTable(this)">Tipo</th><th class="sortable" data-col="2" onclick="sortTable(this)">Títulos</th><th class="sortable" data-col="3" onclick="sortTable(this)">Coste medio</th><th class="sortable" data-col="4" onclick="sortTable(this)">Precio actual</th><th class="sortable" data-col="5" onclick="sortTable(this)">Actualizado</th><th class="sortable" data-col="6" onclick="sortTable(this)">Valor €</th><th class="sortable" data-col="7" onclick="sortTable(this)">G/P €</th><th class="sortable" data-col="8" onclick="sortTable(this)">G/P %</th>
     </tr></thead><tbody id="a-tb-cartera"></tbody></table></div>
   </div>
   <div class="panel" style="margin-top:4px">
     <div class="ph"><span class="ph-t">Posiciones cerradas (historial)</span></div>
     <div class="tw"><table><thead><tr>
-      <th class="sortable" data-col="0" onclick="sortTable(this)">Ticker</th><th class="sortable" data-col="1" onclick="sortTable(this)">Nombre</th><th class="sortable" data-col="2" onclick="sortTable(this)">Tipo</th><th class="sortable" data-col="3" onclick="sortTable(this)">Compras</th><th class="sortable" data-col="4" onclick="sortTable(this)">Ventas</th><th class="sortable" data-col="5" onclick="sortTable(this)">Resultado</th>
+      <th class="sortable" data-col="0" onclick="sortTable(this)">Nombre</th><th class="sortable" data-col="1" onclick="sortTable(this)">Tipo</th><th class="sortable" data-col="2" onclick="sortTable(this)">Compras</th><th class="sortable" data-col="3" onclick="sortTable(this)">Ventas</th><th class="sortable" data-col="4" onclick="sortTable(this)">Resultado</th>
     </tr></thead><tbody id="a-tb-closed"></tbody></table></div>
   </div>
+  <!-- Panel configuración Yahoo Tickers acciones — rellenado dinámicamente por renderTickerConfig() -->
+  <div id="a-ticker-config" style="margin-top:8px"></div>
 </div>
 
 <!-- ACCIONES · OPERACIONES -->
@@ -927,7 +929,7 @@ th.sort-desc::after { content:' ↓'; opacity:1; color:var(--ac); }
   <!-- Evolución + Composición -->
   <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px">
     <div class="panel">
-      <div class="ph"><span class="ph-t">📈 Evolución de aportaciones</span></div>
+      <div class="ph"><span class="ph-t">📈 Evolución patrimonial</span></div>
       <div class="pb" style="position:relative;height:200px">
         <canvas id="rg-evolucion" style="display:block"></canvas>
       </div>
@@ -935,7 +937,7 @@ th.sort-desc::after { content:' ↓'; opacity:1; color:var(--ac); }
     <div class="panel">
       <div class="ph"><span class="ph-t">🥧 Composición</span></div>
       <div class="pb">
-        <canvas id="rg-pie" height="180"></canvas>
+        <canvas id="rg-pie" height="180" style="display:block;margin:0 auto"></canvas>
         <div id="rg-pie-legend" style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;font-size:11px"></div>
       </div>
     </div>
@@ -957,11 +959,7 @@ th.sort-desc::after { content:' ↓'; opacity:1; color:var(--ac); }
     </div>
   </div>
 
-  <!-- Fiscal -->
-  <div class="panel">
-    <div class="ph"><span class="ph-t">🏛️ Estimación fiscal IRPF 2024</span></div>
-    <div class="pb"><div id="rg-fiscal"></div></div>
-  </div>
+  <!-- Fiscal eliminado del Resumen Global — ver Análisis → Fiscal -->
 
 </div>
 

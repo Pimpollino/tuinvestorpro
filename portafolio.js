@@ -765,6 +765,7 @@ function processFondos() {
     var glpReal = invReal > 0 ? (glReal / invReal) * 100 : glp;
     return {
       ticker:         NOMBRE_CORTO_F[p.isin] || p.isin.substring(0,8),
+      yahoo_ticker:   p.yahoo_ticker || null,
       nombre:         p.nombre,
       isin:           p.isin,
       qty:            p.titulos,
@@ -1716,7 +1717,7 @@ function ST(broker, name, btn) {
         '<span><span class="ld" style="background:var(--yel)"></span>S&P 500 ref.</span>'+
         fundLegend;
     }
-      drawPie('c-pie-f',FPOS.map(function(p){return p.ticker;}),FPOS.map(function(p){return p.currentValue;}),COLORS);
+      drawPie('c-pie-f',FPOS.map(function(p){return p.ticker;}),FPOS.map(function(p){return p.currentValue;}),COLORS,FPOS.map(function(p){return {nombre:p.nombre,val:p.currentValue,gl:p.gainLoss,glp:p.gainLossPct};}));
     }
     if (broker==='fondos'&&name==='analisis') {
       drawBars('c-gl-f',FPOS.map(function(p){return p.ticker;}),FPOS.map(function(p){return p.gainLoss;}),COLORS,FPOS.map(function(p){return p.nombre;}));
@@ -1729,7 +1730,7 @@ function ST(broker, name, btn) {
     }
     if (broker==='acciones'&&name==='dashboard') {
       drawBarsW('c-gl-a-dash', APOS.map(function(p){return p.ticker;}), APOS.map(function(p){return p.gainLoss;}), ACOLORS, 0.62, APOS.map(function(p){return p.nombre||p.ticker;}));
-      drawPie('c-pie-a',APOS.map(function(p){return p.ticker;}),APOS.map(function(p){return p.currentValue;}),ACOLORS);
+      drawPie('c-pie-a',APOS.map(function(p){return p.ticker;}),APOS.map(function(p){return p.currentValue;}),ACOLORS,APOS.map(function(p){return {nombre:p.nombre||p.ticker,val:p.currentValue,gl:p.gainLoss,glp:p.gainLossPct};}));
     }
     if (broker==='acciones'&&name==='analisis') {
       drawBars('c-gl-a',APOS.map(function(p){return p.ticker;}),APOS.map(function(p){return p.gainLoss;}),ACOLORS,APOS.map(function(p){return p.nombre||p.ticker;}));
@@ -1814,19 +1815,69 @@ function drawBarsW(id, labels, values, colors, fraction, fullNames) {
   };
   cv.onmouseleave = function() { if (_tip) _tip.style.display = 'none'; };
 }
-function drawPie(id, labels, values, colors) {
+function drawPie(id, labels, values, colors, tooltipData) {
   var cv=document.getElementById(id); if (!cv) return;
   var ctx=cv.getContext('2d'); cv.width=200; cv.height=155;
   var cx=100, cy=72, r=62, ri=33;
-  var total=values.reduce(function(a,b){return a+b;},0), angle=-Math.PI/2;
+  var total=values.reduce(function(a,b){return a+b;},0);
+  var slices=[]; var angle=-Math.PI/2;
   values.forEach(function(v,i){
     var sl=(v/total)*Math.PI*2;
+    slices.push({start:angle, end:angle+sl, color:colors[i%colors.length], label:labels[i], value:v, pct:v/total*100});
     ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,angle,angle+sl);
     ctx.closePath(); ctx.fillStyle=colors[i%colors.length]; ctx.fill(); angle+=sl;
   });
   ctx.beginPath(); ctx.arc(cx,cy,ri,0,Math.PI*2); ctx.fillStyle='#0d1420'; ctx.fill();
   ctx.fillStyle='#dde6f0'; ctx.font='bold 10px sans-serif'; ctx.textAlign='center';
   ctx.fillText(values.length+' pos.', cx, cy+4);
+
+  // Tooltip
+  var tip = document.getElementById('_pie-tip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = '_pie-tip';
+    tip.style.cssText = 'position:fixed;pointer-events:none;display:none;background:#0d1420;border:1px solid #1e3a5a;border-radius:8px;padding:8px 12px;font-size:12px;color:#dde6f0;z-index:9999;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.6);min-width:160px';
+    document.body.appendChild(tip);
+  }
+  cv.onmousemove = function(e) {
+    var rect = cv.getBoundingClientRect();
+    var scaleX = cv.width / rect.width, scaleY = cv.height / rect.height;
+    var mx = (e.clientX - rect.left) * scaleX - cx;
+    var my = (e.clientY - rect.top) * scaleY - cy;
+    var dist = Math.sqrt(mx*mx + my*my);
+    if (dist < ri || dist > r) { tip.style.display='none'; return; }
+    var a = Math.atan2(my, mx);
+    if (a < -Math.PI/2) a += Math.PI*2; // normalise to start at top
+    // Find which slice
+    var found = null;
+    for (var i=0; i<slices.length; i++) {
+      var s = slices[i];
+      var sa = s.start, ea = s.end;
+      if (a >= sa && a < ea) { found=s; break; }
+    }
+    if (!found) { tip.style.display='none'; return; }
+    var td = tooltipData ? tooltipData[slices.indexOf(found)] : null;
+    var html = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">' +
+      '<span style="width:10px;height:10px;border-radius:2px;background:'+found.color+';display:inline-block;flex-shrink:0"></span>' +
+      '<strong style="font-size:12px">' + (td ? td.nombre : found.label) + '</strong></div>';
+    html += '<div style="display:flex;justify-content:space-between;gap:16px;color:#7a98b8;font-size:11px">' +
+      '<span>Peso</span><span style="color:#dde6f0;font-weight:700;font-family:monospace">' + found.pct.toFixed(1) + '%</span></div>';
+    if (td) {
+      html += '<div style="display:flex;justify-content:space-between;gap:16px;color:#7a98b8;font-size:11px">' +
+        '<span>Valor</span><span style="color:#dde6f0;font-weight:700;font-family:monospace">' + E(td.val) + '</span></div>';
+      if (td.gl !== undefined) {
+        var glColor = td.gl >= 0 ? 'var(--ac)' : 'var(--red)';
+        html += '<div style="display:flex;justify-content:space-between;gap:16px;color:#7a98b8;font-size:11px">' +
+          '<span>G/P</span><span style="color:'+glColor+';font-weight:700;font-family:monospace">' +
+          (td.gl>=0?'+':'') + E(Math.round(td.gl*100)/100) + ' · ' + (td.glp>=0?'+':'') + td.glp.toFixed(1) + '%</span></div>';
+      }
+    }
+    tip.innerHTML = html;
+    tip.style.display = 'block';
+    tip.style.left = (e.clientX + 14) + 'px';
+    tip.style.top  = (e.clientY - 10) + 'px';
+  };
+  cv.onmouseleave = function() { tip.style.display='none'; };
 }
 function drawDividBars() {
   var d={}, nm={};
@@ -2589,7 +2640,7 @@ function reloadData() {
         var _on = document.querySelector('.view.on');
         if (_on) {
           if (_on.id === 'view-fondos-dashboard')  { drawBench('c-bench'); drawFundPerf('c-fund-perf'); }
-          if (_on.id === 'view-acciones-dashboard') { drawPie('c-pie-a',APOS.map(function(p){return p.ticker;}),APOS.map(function(p){return p.currentValue;}),ACOLORS); }
+          if (_on.id === 'view-acciones-dashboard') { drawPie('c-pie-a',APOS.map(function(p){return p.ticker;}),APOS.map(function(p){return p.currentValue;}),ACOLORS,APOS.map(function(p){return {nombre:p.nombre||p.ticker,val:p.currentValue,gl:p.gainLoss,glp:p.gainLossPct};})); }
         }
       }
     })
@@ -3414,12 +3465,15 @@ function renderFondos() {
   setTimeout(function(){
     var tv2=FPOS.reduce(function(s,p){return s+p.currentValue;},0);
     document.getElementById('pie-lbl-f').innerHTML=FPOS.map(function(p,i){
-      return '<div class="plr" title="'+p.nombre+'"><span style="display:flex;align-items:center;gap:5px">'+
-        '<span style="width:7px;height:7px;border-radius:2px;background:'+COLORS[i%COLORS.length]+';display:inline-block"></span>'+
-        '<span style="font-weight:600;color:var(--text)">'+p.nombre.split(' ').slice(0,3).join(' ')+'</span>'+
-        '<span class="mono" style="font-size:10px;color:var(--fondos);margin-left:3px">'+p.isin.substring(0,8)+'</span>'+
-        '<span style="font-size:10px;color:var(--mu);margin-left:3px">'+N(p.currentValue/tv2*100,1)+'%</span></span>'+
-        '<span class="mono" style="color:var(--text);font-weight:700;font-size:11px">'+E(p.currentValue)+'</span></div>';
+      var pct = N(p.currentValue/tv2*100,1);
+      var glp = p.gainLossPct;
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--bd)" title="'+p.nombre+'">' +
+        '<span style="width:8px;height:8px;border-radius:2px;flex-shrink:0;background:'+COLORS[i%COLORS.length]+'"></span>' +
+        '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;color:var(--text)">'+p.nombre+'</span>' +
+        '<span class="mono" style="font-size:11px;color:var(--mu2);flex-shrink:0">'+pct+'%</span>' +
+        '<span class="mono" style="font-size:11px;font-weight:700;flex-shrink:0;color:'+C(glp)+'">'+P(glp)+'</span>' +
+        '<span class="mono" style="font-size:11px;font-weight:700;color:var(--text);flex-shrink:0;min-width:64px;text-align:right">'+E(p.currentValue)+'</span>' +
+      '</div>';
     }).join('');
   },60);
 
@@ -3482,7 +3536,7 @@ function renderFondos() {
       :'<span style="color:var(--mu);font-size:10px">broker FIFO</span>';
     return '<tr><td class="mu" style="white-space:nowrap">'+fecha+'</td>'+
       '<td><span style="font-weight:700;color:var(--text)">'+r.nombre+'</span>'
-        +' <span class="mono" style="font-size:10px;color:var(--fondos)" title="'+r.isin+'">'+((NOMBRE_CORTO_F&&NOMBRE_CORTO_F[r.isin])||r.ticker.substring(0,8))+'</span></td>'+
+        +' <span class="mono" style="font-size:10px;color:var(--fondos)" title="'+(r.p&&r.p.isin||'')+'">'+((r.p&&r.p.yahoo_ticker) || ((r.p&&r.p.isin)||'').substring(0,8))+'</span></td>'+
       '<td class="mono">'+N(r.titulos,5)+'</td><td class="mono">'+E(r.importe)+'</td>'+
       '<td class="mono mu">'+E(r.coste)+'</td>'+
       '<td class="mono" style="color:'+C(r.gain)+';font-weight:700">'+(r.gain>=0?'+':'')+E(r.gain)+'</td>'+
@@ -3578,14 +3632,19 @@ function renderAcciones() {
   document.getElementById('a-tb-summary').innerHTML = APOS.map(function(p) {
     var ac=p.asset==='ETF'?'#0af':'var(--acciones)';
     var priceStr=p.divisa!=='EUR'?N(p.currentPrice,2)+' '+p.divisa:E(p.currentPrice);
-    return '<tr><td class="mono" style="color:var(--acciones);font-weight:700">'+p.ticker+'</td>'+
-      '<td>'+p.nombre+'</td><td>'+bdg(p.asset,ac)+'</td>'+
+    // Mostrar ticker real si existe (no-ISIN), si no solo el nombre
+    var _tk = (!p.ticker || /^[A-Z]{2}[A-Z0-9]{10}$/.test(p.ticker)) ? '' : p.ticker;
+    return '<tr>'+
+      '<td><span style="display:flex;align-items:center;gap:7px">'+
+        (_tk ? '<span class="mono" style="font-size:11px;color:var(--acciones);font-weight:700">'+_tk+'</span>' : '')+
+        '<span style="font-weight:600">'+p.nombre+'</span>'+
+      '</span></td><td>'+bdg(p.asset,ac)+'</td>'+
       '<td class="mono mu" style="font-size:10px">'+p.isin+'</td><td class="mono">'+p.qty+'</td>'+
       '<td class="mono">'+E(p.cost)+'</td>'+
       '<td class="mono" style="font-weight:700">'+E(p.currentValue)+'<span class="mu" style="font-size:10px;margin-left:4px">'+priceStr+'</span></td>'+
       '<td class="mono" style="color:'+C(p.gainLoss)+';font-weight:700">'+(p.gainLoss>=0?'+':'')+E(p.gainLoss)+'</td>'+
       '<td class="mono" style="color:'+C(p.gainLossPct)+';font-weight:800">'+P(p.gainLossPct)+'</td></tr>';
-  }).concat(['<tr style="background:var(--s2)"><td colspan="4"><strong>TOTAL</strong></td><td></td>'+
+  }).concat(['<tr style="background:var(--s2)"><td colspan="3"><strong>TOTAL</strong></td><td></td>'+
     '<td class="mono"><strong>'+E(tc)+'</strong></td>'+
     '<td class="mono" style="color:var(--acciones);font-weight:800">'+E(tv)+'</td>'+
     '<td class="mono" style="color:'+C(gl)+';font-weight:800">'+(gl>=0?'+':'')+E(gl)+'</td>'+
@@ -3603,9 +3662,10 @@ function renderAcciones() {
   document.getElementById('a-divid-badge').innerHTML = bdg(divids.length+' cobros · '+E(Math.round(totalDivid*100)/100),'var(--yel)');
   document.getElementById('a-divid-list').innerHTML = Object.keys(dividByTicker).map(function(tk){
     var d=dividByTicker[tk];
+    var _dtk = (!tk || /^[A-Z]{2}[A-Z0-9]{10}$/.test(tk)) ? '' : tk;
     return '<div class="divid-row"><div style="display:flex;align-items:center;gap:8px">'+
-      '<span class="mono" style="color:var(--pur);font-weight:700">'+tk+'</span>'+
-      '<span class="mu" style="font-size:11px">'+d.name+'</span></div>'+
+      (_dtk ? '<span class="mono" style="color:var(--pur);font-weight:700;font-size:11px">'+_dtk+'</span>' : '')+
+      '<span style="font-weight:600;font-size:12px">'+d.name+'</span></div>'+
       '<div style="display:flex;gap:14px;align-items:center">'+
       '<span class="mu" style="font-size:11px">'+d.count+' cobro'+(d.count>1?'s':'')+'</span>'+
       '<span class="mono mu" style="font-size:11px">'+N(d.total,4)+' '+d.divisa+'</span>'+
@@ -3618,8 +3678,12 @@ function renderAcciones() {
     var ac=p.asset==='ETF'?'#0af':'var(--acciones)';
     var priceStr=p.divisa!=='EUR'?N(p.currentPrice,2)+' '+p.divisa:E(p.currentPrice);
     var avgStr=p.divisa!=='EUR'?N(p.avgPrice,4)+' '+p.divisa:E(p.avgPrice);
-    return '<tr><td class="mono" style="color:var(--acciones);font-weight:700">'+p.ticker+'</td>'+
-      '<td>'+p.nombre+'</td><td>'+bdg(p.asset,ac)+'</td>'+
+    var _tk2 = (!p.ticker || /^[A-Z]{2}[A-Z0-9]{10}$/.test(p.ticker)) ? '' : p.ticker;
+    return '<tr>'+
+      '<td><span style="display:flex;align-items:center;gap:7px">'+
+        (_tk2?'<span class="mono" style="font-size:11px;color:var(--acciones);font-weight:700;flex-shrink:0">'+_tk2+'</span>':'')+
+        '<span style="font-weight:600">'+p.nombre+'</span></span></td>'
+      +'<td>'+bdg(p.asset,ac)+'</td>'+
       '<td class="mono">'+p.qty+'</td>'+
       '<td class="mono mu">'+avgStr+'</td><td class="mono" style="font-weight:700">'+priceStr+'</td>'+
       '<td class="mono mu" style="font-size:10px;color:var(--mu2)">'+( p._priceDateUI ? fmtDT(p._priceDateUI) : '—' )+'</td>'+
@@ -3662,8 +3726,12 @@ function renderAcciones() {
     rows.sort(function(a,b){ return (b[sc]-a[sc])*sd; });
     document.getElementById('a-tb-closed').innerHTML=rows.map(function(r){
       var d=r.d, res=r.res;
-      return '<tr><td class="mono" style="color:var(--mu2);font-weight:700">'+r.tk+'</td>'+
-        '<td>'+d.name+'</td><td>'+bdg(d.asset||'Acción','var(--mu)')+'</td>'+
+      var _ctk = (!r.tk || /^[A-Z]{2}[A-Z0-9]{10}$/.test(r.tk)) ? '' : r.tk;
+      return '<tr>'+
+        '<td><span style="display:flex;align-items:center;gap:7px">'+
+          (_ctk?'<span class="mono" style="font-size:11px;color:var(--mu2);font-weight:700;flex-shrink:0">'+_ctk+'</span>':'')+
+          '<span style="font-weight:600">'+d.name+'</span></span></td>'
+        +'<td>'+bdg(d.asset||'Acción','var(--mu)')+'</td>'+
         '<td class="mono mu">'+N(d.bought,2)+' u · '+E(d.buyValEUR)+'</td>'+
         '<td class="mono mu">'+N(d.sold,2)+' u · '+E(d.sellValEUR)+'</td>'+
         '<td class="mono" style="cursor:pointer" onclick="_closedSetSort(\'res\')" title="Ordenar por resultado">'+
@@ -3765,12 +3833,15 @@ function renderAcciones() {
 
   setTimeout(function(){
     document.getElementById('pie-lbl-a').innerHTML=APOS.map(function(p,i){
-      return '<div class="plr" title="'+p.nombre+'"><span style="display:flex;align-items:center;gap:5px;color:var(--mu2)">'+
-        '<span style="width:7px;height:7px;border-radius:2px;background:'+ACOLORS[i%ACOLORS.length]+';display:inline-block"></span>'+
-        '<span style="font-weight:600;color:var(--text)">'+p.nombre+'</span>'+
-        '<span class="mono" style="font-size:10px;color:var(--acciones);margin-left:3px">'+p.ticker+'</span>'+
-        '<span style="font-size:10px;color:var(--mu);margin-left:3px">'+N(p.currentValue/tv*100,1)+'%</span></span>'+
-        '<span class="mono" style="color:var(--text);font-weight:700;font-size:11px">'+E(p.currentValue)+'</span></div>';
+      var pct = N(p.currentValue/tv*100,1);
+      var glp = p.gainLossPct;
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--bd)" title="'+p.nombre+'">' +
+        '<span style="width:8px;height:8px;border-radius:2px;flex-shrink:0;background:'+ACOLORS[i%ACOLORS.length]+'"></span>' +
+        '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;color:var(--text)">'+p.nombre+'</span>' +
+        '<span class="mono" style="font-size:11px;color:var(--mu2);flex-shrink:0">'+pct+'%</span>' +
+        '<span class="mono" style="font-size:11px;font-weight:700;flex-shrink:0;color:'+C(glp)+'">'+P(glp)+'</span>' +
+        '<span class="mono" style="font-size:11px;font-weight:700;color:var(--text);flex-shrink:0;min-width:64px;text-align:right">'+E(p.currentValue)+'</span>' +
+      '</div>';
     }).join('');
   },60);
   } // end _PRICES_LOADED (a-ka, análisis)
@@ -3994,13 +4065,19 @@ function updateHeaderVal(fifoF) {
       '<span class="bks-lbl">Fondos</span>'+
       '<span class="bks-val" style="color:var(--fondos)">'+E(tvF)+'</span>'+
       '<span class="bks-sub" style="color:'+(glF>=0?'var(--fondos)':'var(--red)')+'">'+
-        (glF>=0?'+':'')+E(Math.round(glF*100)/100)+'</span>'+
+        (glF>=0?'+':'')+E(Math.round(glF*100)/100)+
+        '<span style="opacity:.55;margin:0 3px">·</span>'+
+        '<span style="font-size:10px;opacity:.8">'+(pctF>=0?'+':'')+pctF.toFixed(1)+'%</span>'+
+      '</span>'+
     '</div>'+
     '<div class="bks">'+
       '<span class="bks-lbl">Acciones</span>'+
       '<span class="bks-val" style="color:var(--acciones)">'+E(tvA)+'</span>'+
       '<span class="bks-sub" style="color:'+(glA>=0?'var(--acciones)':'var(--red)')+'">'+
-        (glA>=0?'+':'')+E(Math.round(glA*100)/100)+'</span>'+
+        (glA>=0?'+':'')+E(Math.round(glA*100)/100)+
+        '<span style="opacity:.55;margin:0 3px">·</span>'+
+        '<span style="font-size:10px;opacity:.8">'+(pctA>=0?'+':'')+pctA.toFixed(1)+'%</span>'+
+      '</span>'+
     '</div>'+
     '<div class="bks" style="border-left:1px solid var(--bd)" title="G/P no realizada sobre posiciones abiertas">'+
       '<span class="bks-lbl">G/P Latente</span>'+
@@ -4026,9 +4103,9 @@ function updateHeaderVal(fifoF) {
 window.addEventListener('resize', function(){
   var on=document.querySelector('.view.on'); if (!on) return;
   var id=on.id;
-  if (id==='view-fondos-dashboard') { drawBench('c-bench'); drawPie('c-pie-f',FPOS.map(function(p){return p.ticker;}),FPOS.map(function(p){return p.currentValue;}),COLORS); }
+  if (id==='view-fondos-dashboard') { drawBench('c-bench'); drawPie('c-pie-f',FPOS.map(function(p){return p.ticker;}),FPOS.map(function(p){return p.currentValue;}),COLORS,FPOS.map(function(p){return {nombre:p.nombre,val:p.currentValue,gl:p.gainLoss,glp:p.gainLossPct};})); }
   if (id==='view-fondos-analisis')  drawBars('c-gl-f',FPOS.map(function(p){return p.ticker;}),FPOS.map(function(p){return p.gainLoss;}),COLORS,FPOS.map(function(p){return p.nombre;}));
-  if (id==='view-acciones-dashboard'){drawBarsW('c-gl-a-dash',APOS.map(function(p){return p.ticker;}),APOS.map(function(p){return p.gainLoss;}),ACOLORS,0.62,APOS.map(function(p){return p.nombre||p.ticker;}));drawPie('c-pie-a',APOS.map(function(p){return p.ticker;}),APOS.map(function(p){return p.currentValue;}),ACOLORS);}
+  if (id==='view-acciones-dashboard'){drawBarsW('c-gl-a-dash',APOS.map(function(p){return p.ticker;}),APOS.map(function(p){return p.gainLoss;}),ACOLORS,0.62,APOS.map(function(p){return p.nombre||p.ticker;}));drawPie('c-pie-a',APOS.map(function(p){return p.ticker;}),APOS.map(function(p){return p.currentValue;}),ACOLORS,APOS.map(function(p){return {nombre:p.nombre||p.ticker,val:p.currentValue,gl:p.gainLoss,glp:p.gainLossPct};}));}
   if (id==='view-acciones-analisis'){drawBars('c-gl-a',APOS.map(function(p){return p.ticker;}),APOS.map(function(p){return p.gainLoss;}),ACOLORS,APOS.map(function(p){return p.nombre||p.ticker;}));drawDividBars();}
 });
 
@@ -4920,6 +4997,7 @@ function renderResumen() {
         '</span>';
       return { l:'Valor cartera', v: E(totalVal), s: sub, c:'var(--ac)' };
     })(),
+
     (function(){
       var sub =
         '<span style="display:flex;flex-direction:column;gap:3px;margin-top:2px">' +
@@ -4938,6 +5016,7 @@ function renderResumen() {
         '</span>';
       return { l:'G/P latente', v: (totalGL>=0?'+':'') + E(Math.round(totalGL*100)/100), s: sub, c: C(totalGL) };
     })(),
+
     (function(){
       var sub =
         '<span style="display:flex;flex-direction:column;gap:3px;margin-top:2px">' +
@@ -4958,6 +5037,54 @@ function renderResumen() {
       var _rdisplay=Math.round(realFTotal*100)/100+Math.round(realA*100)/100+Math.round(totalDivid*100)/100;
       return { l:'G/P realizada + dividendos', v: (_rdisplay>=0?'+':'')+E(Math.round(_rdisplay*100)/100), s: sub, c: C(_rdisplay) };
     })(),
+
+    (function(){
+      var gpHist = Math.round((totalGL + totalReal + totalDivid)*100)/100;
+      var gpHistPct = totalInvReal > 0 ? (gpHist / totalInvReal) * 100 : 0;
+      var sub =
+        '<span style="display:flex;flex-direction:column;gap:3px;margin-top:2px">' +
+          '<span style="display:flex;justify-content:space-between">' +
+            '<span style="color:var(--mu2)">G/P latente</span>' +
+            '<span style="color:' + C(totalGL) + ';font-weight:600">' + (totalGL>=0?'+':'') + E(Math.round(totalGL*100)/100) + '</span>' +
+          '</span>' +
+          '<span style="display:flex;justify-content:space-between">' +
+            '<span style="color:var(--mu2)">G/P realizada</span>' +
+            '<span style="color:' + C(totalReal) + ';font-weight:600">' + (totalReal>=0?'+':'') + E(Math.round(totalReal*100)/100) + '</span>' +
+          '</span>' +
+          '<span style="display:flex;justify-content:space-between">' +
+            '<span style="color:var(--yel)">+ Dividendos</span>' +
+            '<span style="color:var(--yel);font-weight:600">+' + E(Math.round(totalDivid*100)/100) + '</span>' +
+          '</span>' +
+          '<span style="display:flex;justify-content:space-between;padding-top:3px;border-top:1px solid var(--bd);margin-top:1px">' +
+            '<span style="color:var(--mu2)">Rentab. s/invertido</span>' +
+            '<span style="color:' + C(gpHistPct) + ';font-weight:700">' + (gpHistPct>=0?'+':'') + gpHistPct.toFixed(1) + '%</span>' +
+          '</span>' +
+        '</span>';
+      return { l:'G/P Histórica', v: (gpHist>=0?'+':'')+E(gpHist), s: sub, c: C(gpHist) };
+    })(),
+
+    (function(){
+      var histPct = totalInvRealCompleto > 0 ? (totalHistCompleto/totalInvRealCompleto)*100 : 0;
+      var _histDisp = Math.round(totalHistCompleto*100)/100;
+      var sub =
+        '<span style="display:flex;flex-direction:column;gap:3px;margin-top:2px">' +
+          '<span style="display:flex;justify-content:space-between">' +
+            '<span style="color:var(--mu2)">G/P Histórica</span>' +
+            '<span style="color:' + C(totalGL+totalReal+totalDivid) + ';font-weight:600">' + (totalGL+totalReal+totalDivid>=0?'+':'') + E(Math.round((totalGL+totalReal+totalDivid)*100)/100) + '</span>' +
+          '</span>' +
+          (pmRoboadvisor > 1 ?
+          '<span style="display:flex;justify-content:space-between">' +
+            '<span style="color:var(--mu2)">+ Fondos anteriores</span>' +
+            '<span style="color:var(--ac);font-weight:600">+' + E(Math.round(pmRoboadvisor*100)/100) + '</span>' +
+          '</span>' : '') +
+          '<span style="display:flex;justify-content:space-between;padding-top:3px;border-top:1px solid var(--bd);margin-top:1px">' +
+            '<span style="color:var(--mu2)">Rentab. real total</span>' +
+            '<span style="color:' + C(histPct) + ';font-weight:700">' + (histPct>=0?'+':'') + histPct.toFixed(1) + '%</span>' +
+          '</span>' +
+        '</span>';
+      return { l:'G/P Histórica total', v: (_histDisp>=0?'+':'')+E(_histDisp), s: sub, c: C(_histDisp) };
+    })(),
+
     (function(){
       var neto = baseImp - irpfEst;
       var latenteTax = irpfHipot - irpfEst;
@@ -4981,68 +5108,6 @@ function renderResumen() {
           '</span>' +
         '</span>';
       return { l:'Fiscal realizado', v: '-' + E(Math.round(irpfEst*100)/100), s: sub, c:'var(--red)' };
-    })(),
-
-    (function(){
-      var histPct = totalInvRealCompleto > 0 ? (totalHistCompleto/totalInvRealCompleto)*100 : 0;
-      var sub =
-        '<span style="display:flex;flex-direction:column;gap:3px;margin-top:2px">' +
-          '<span style="display:flex;justify-content:space-between">' +
-            '<span style="color:var(--mu2)">Latente</span>' +
-            '<span style="color:' + C(totalGL) + ';font-weight:600">' + (totalGL>=0?'+':'') + E(Math.round(totalGL*100)/100) + '</span>' +
-          '</span>' +
-          '<span style="display:flex;justify-content:space-between">' +
-            '<span style="color:var(--mu2)">Realiz. (s/div.)</span>' +
-            '<span style="color:' + C(totalReal) + ';font-weight:600">' + (totalReal>=0?'+':'') + E(Math.round(totalReal*100)/100) + '</span>' +
-          '</span>' +
-          '<span style="display:flex;justify-content:space-between">' +
-            '<span style="color:var(--yel)">Dividendos</span>' +
-            '<span style="color:var(--yel);font-weight:600">+' + E(Math.round(totalDivid*100)/100) + '</span>' +
-          '</span>' +
-          (pmRoboadvisor > 1 ?
-            '<span style="display:flex;justify-content:space-between">' +
-              '<span style="color:var(--mu2)">+ Fondos anteriores</span>' +
-              '<span style="color:var(--ac);font-weight:600">+' + E(Math.round(pmRoboadvisor*100)/100) + '</span>' +
-            '</span>' : '') +
-          '<span style="display:flex;justify-content:space-between;padding-top:3px;border-top:1px solid var(--bd);margin-top:1px">' +
-            '<span style="color:var(--mu2)">Rentab. real</span>' +
-            '<span style="color:' + C(histPct) + ';font-weight:700">' + (histPct>=0?'+':'') + histPct.toFixed(1) + '%</span>' +
-          '</span>' +
-        '</span>';
-      var _histDisp = Math.round(totalHistCompleto*100)/100;
-      return { l:'G/P histórica total', v: (_histDisp>=0?'+':'')+E(_histDisp), s: sub, c: C(_histDisp) };
-    })(),
-
-    (function(){
-      // Gain de fondos cerrados incluido en el acumulado histórico
-      var _histDisp = Math.round(totalGL*100)/100+Math.round(totalReal*100)/100+Math.round(totalDivid*100)/100;
-      var glOrigen  = Math.round(totalHistCompleto*100)/100;
-      var pctOrigen = totalInvRealCompleto > 0 ? (glOrigen/totalInvRealCompleto)*100 : 0;
-      var sub =
-        '<span style="display:flex;flex-direction:column;gap:3px;margin-top:2px">' +
-          '<span style="display:flex;justify-content:space-between">' +
-            '<span style="color:var(--mu2)">G/P histórica</span>' +
-            '<span style="color:' + C(_histDisp) + ';font-weight:600">' + (_histDisp>=0?'+':'') + E(Math.round(_histDisp*100)/100) + '</span>' +
-          '</span>' +
-          (pmRoboadvisor > 1 ?
-          '<span style="display:flex;justify-content:space-between">' +
-            '<span style="color:var(--mu2)">+ Fondos anteriores</span>' +
-            '<span style="color:var(--ac);font-weight:600">+' + E(Math.round(pmRoboadvisor*100)/100) + '</span>' +
-          '</span>' : '') +
-          '<span style="display:flex;justify-content:space-between;padding-top:3px;border-top:1px dashed rgba(255,255,255,.15);margin-top:1px">' +
-            '<span style="color:var(--mu2);font-size:10px">Cash total aportado</span>' +
-            '<span style="color:var(--mu2);font-weight:600;font-size:10px">' + E(Math.round(totalInvRealCompleto*100)/100) + '</span>' +
-          '</span>' +
-          '<span style="display:flex;justify-content:space-between;padding-top:3px;border-top:1px solid var(--bd);margin-top:1px">' +
-            '<span style="color:var(--mu2)">Rentab. real</span>' +
-            '<span style="color:' + C(pctOrigen) + ';font-weight:700">' + (pctOrigen>=0?'+':'') + pctOrigen.toFixed(1) + '%</span>' +
-          '</span>' +
-        '</span>' +
-        (pmRoboadvisor > 1 ?
-          '<span style="display:block;margin-top:6px;font-size:9.5px;color:var(--mu);line-height:1.4;border-top:1px dashed rgba(255,255,255,.08);padding-top:5px">' +
-            'Incluye ' + E(Math.round(pmRoboadvisor*100)/100) + ' de plusval\u00edas en fondos anteriores ya cerrados.' +
-          '</span>' : '');
-      return { l:'Desde el origen \u24d8', v: (glOrigen>=0?'+':'')+E(glOrigen), s: sub, c: C(glOrigen) };
     })(),
   ];
 
@@ -5087,8 +5152,7 @@ function renderResumen() {
       '<td title="'+r.nombre+'"><span style="display:inline-flex;align-items:center;gap:6px">' +
         '<span style="width:6px;height:6px;border-radius:50%;background:'+r.color+';flex-shrink:0"></span>' +
         '<span style="font-weight:700;color:var(--text)">'+r.nombre+'</span>' +
-        '<span class="mono" style="color:'+r.color+';font-size:10px">'+r.ticker+'</span>' +
-        '<span style="color:var(--mu2);font-size:10px">'+r.tipo+'</span>' +
+        '<span style="color:var(--mu2);font-size:10px;background:var(--s2);border-radius:4px;padding:1px 5px">'+r.tipo+'</span>' +
       '</span></td>' +
       '<td class="mono">'+E(Math.round(r.inv*100)/100)+'</td>' +
       '<td class="mono" style="font-weight:700">'+E(Math.round(r.val*100)/100)+'</td>' +
@@ -5124,7 +5188,7 @@ function renderResumen() {
     else { el.textContent=' ⇅'; el.style.opacity='.35'; }
   });
 
-  // ── Gráfico evolución patrimonial ──
+  // ── Gráfico evolución patrimonial (Opción C: capital aportado + valor actual) ──
   var ctxEv = document.getElementById('rg-evolucion');
   if (ctxEv && cumLabels.length > 1) {
     requestAnimationFrame(function() {
@@ -5134,14 +5198,23 @@ function renderResumen() {
       cv.width = W; cv.height = H;
       var ctx = cv.getContext('2d');
       ctx.clearRect(0, 0, W, H);
-      var pd = {t:16, r:16, b:28, l:52};
+      var pd = {t:24, r:16, b:28, l:56};
       var iW = W - pd.l - pd.r;
       var iH = H - pd.t - pd.b;
-      var maxV = Math.max.apply(null, cumInv) || 1;
+
+      // Valor actual de la cartera — único punto "hoy"
+      var valHoy = Math.round(totalVal);
+      var lastInv = cumInv[cumInv.length-1] || 0;
+      var ganancia = valHoy - lastInv;
+      var isGain = ganancia >= 0;
+
+      var maxV = Math.max(Math.max.apply(null, cumInv), valHoy) * 1.05 || 1;
       var minV = 0;
       var rng = maxV - minV || 1;
+
       function xp(i){ return pd.l + (i/(cumInv.length-1))*iW; }
       function yp(v){ return pd.t + iH - ((v-minV)/rng)*iH; }
+
       // Grid lines
       ctx.strokeStyle='rgba(255,255,255,.05)';
       ctx.lineWidth=1;
@@ -5150,17 +5223,18 @@ function renderResumen() {
         ctx.beginPath(); ctx.moveTo(pd.l,gy); ctx.lineTo(pd.l+iW,gy); ctx.stroke();
         var gv=Math.round(maxV*(1-g/4));
         ctx.fillStyle='#556677'; ctx.font='9px monospace'; ctx.textAlign='right';
-        ctx.fillText(gv>=1000?(gv/1000).toFixed(0)+'k':gv, pd.l-5, gy+3);
+        ctx.fillText(gv>=1000?(gv/1000).toFixed(1)+'k':gv, pd.l-5, gy+3);
       }
-      // Fill area
+
+      // ── Línea 1: capital aportado acumulado (verde teal) ──
       ctx.beginPath();
       ctx.moveTo(xp(0), yp(minV));
       for(var i=0;i<cumInv.length;i++) ctx.lineTo(xp(i), yp(cumInv[i]));
       ctx.lineTo(xp(cumInv.length-1), yp(minV));
       ctx.closePath();
-      ctx.fillStyle='rgba(0,229,176,0.07)';
+      ctx.fillStyle='rgba(0,229,176,0.06)';
       ctx.fill();
-      // Line
+
       ctx.beginPath();
       ctx.strokeStyle='#00e5b0'; ctx.lineWidth=2; ctx.lineJoin='round';
       for(var i=0;i<cumInv.length;i++){
@@ -5168,25 +5242,79 @@ function renderResumen() {
         else ctx.lineTo(xp(i),yp(cumInv[i]));
       }
       ctx.stroke();
+
+      // ── Punto + línea vertical "hoy": valor actual ──
+      var lx = xp(cumInv.length-1);
+      var lyInv = yp(lastInv);
+      var lyVal = yp(valHoy);
+      var valColor = isGain ? '#a78bfa' : '#f87171';  // lila si ganancia, rojo si pérdida
+
+      // Línea vertical discontinua entre capital y valor actual
+      ctx.save();
+      ctx.setLineDash([3,3]);
+      ctx.strokeStyle = valColor;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(lx, lyInv);
+      ctx.lineTo(lx, lyVal);
+      ctx.stroke();
+      ctx.restore();
+
+      // Punto valor actual
+      ctx.beginPath();
+      ctx.arc(lx, lyVal, 5, 0, Math.PI*2);
+      ctx.fillStyle = valColor;
+      ctx.fill();
+      ctx.strokeStyle = '#0d1420';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Punto capital aportado (último)
+      ctx.beginPath();
+      ctx.arc(lx, lyInv, 3, 0, Math.PI*2);
+      ctx.fillStyle = '#00e5b0';
+      ctx.fill();
+
+      // Labels "hoy"
+      var lblValY = lyVal + (lyVal < pd.t + 20 ? 14 : -8);
+      ctx.fillStyle = valColor;
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(E(valHoy), lx - 8, lblValY);
+
+      var gaStr = (isGain?'+':'') + E(Math.round(ganancia*100)/100);
+      ctx.font = '9px monospace';
+      ctx.fillStyle = valColor;
+      ctx.fillText(gaStr, lx - 8, lblValY + 12);
+
+      // Label capital aportado
+      ctx.fillStyle = '#00e5b0';
+      ctx.font = '9px monospace';
+      ctx.fillText(E(lastInv), lx - 8, lyInv + (lyInv > lyVal ? 12 : -4));
+
       // X labels (every N months)
       var step=Math.ceil(cumLabels.length/8);
       ctx.fillStyle='#556677'; ctx.font='9px monospace'; ctx.textAlign='center';
       for(var i=0;i<cumLabels.length;i+=step){
         ctx.fillText(cumLabels[i], xp(i), H-6);
       }
-      // Last value label
-      var lastX=xp(cumInv.length-1), lastY=yp(cumInv[cumInv.length-1]);
-      ctx.beginPath(); ctx.arc(lastX,lastY,3,0,Math.PI*2);
-      ctx.fillStyle='#00e5b0'; ctx.fill();
-      ctx.fillStyle='#00e5b0'; ctx.font='bold 10px monospace'; ctx.textAlign='right';
-      ctx.fillText(E(cumInv[cumInv.length-1]), lastX-6, lastY-6);
 
-      // Tooltip hover — muestra valor acumulado del mes al pasar el ratón
+      // ── Leyenda ──
+      var legy = pd.t - 8;
+      ctx.font = '9px monospace'; ctx.textAlign = 'left';
+      ctx.fillStyle = '#00e5b0';
+      ctx.fillRect(pd.l, legy - 6, 12, 3);
+      ctx.fillText('Capital aportado', pd.l + 16, legy);
+      ctx.fillStyle = valColor;
+      ctx.beginPath(); ctx.arc(pd.l + 110 + 5, legy - 4, 4, 0, Math.PI*2); ctx.fill();
+      ctx.fillText('Valor hoy', pd.l + 120, legy);
+
+      // Tooltip hover
       var _evTip = document.getElementById('_ev-tip');
       if (!_evTip) {
         _evTip = document.createElement('div');
         _evTip.id = '_ev-tip';
-        _evTip.style.cssText = 'position:fixed;pointer-events:none;display:none;background:#0d1420;border:1px solid #1e3a5a;border-radius:6px;padding:5px 10px;font-size:12px;color:#dde6f0;z-index:9999;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.5)';
+        _evTip.style.cssText = 'position:fixed;pointer-events:none;display:none;background:#0d1420;border:1px solid #1e3a5a;border-radius:6px;padding:6px 12px;font-size:12px;color:#dde6f0;z-index:9999;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.5)';
         document.body.appendChild(_evTip);
       }
       cv.onmousemove = function(e) {
@@ -5195,8 +5323,15 @@ function renderResumen() {
         if (mx < pd.l || mx > pd.l + iW) { _evTip.style.display='none'; return; }
         var idx = Math.round((mx - pd.l) / iW * (cumInv.length - 1));
         idx = Math.max(0, Math.min(cumInv.length-1, idx));
-        _evTip.innerHTML = '<strong style="color:#00e5b0">' + cumLabels[idx] + '</strong><br>' +
-          '<span style="color:#7a98b8">Capital acumulado: </span><span style="font-family:monospace">' + E(cumInv[idx]) + '</span>';
+        var isLast = idx === cumInv.length - 1;
+        var tipHtml = '<strong style="color:#aab">' + cumLabels[idx] + '</strong><br>' +
+          '<span style="color:#00e5b0">● Capital: </span><span style="font-family:monospace">' + E(cumInv[idx]) + '</span>';
+        if (isLast) {
+          tipHtml += '<br><span style="color:' + valColor + '">● Valor hoy: </span>' +
+            '<span style="font-family:monospace">' + E(valHoy) + '</span>' +
+            '<br><span style="color:' + valColor + '; font-size:11px">' + gaStr + '</span>';
+        }
+        _evTip.innerHTML = tipHtml;
         _evTip.style.display = 'block';
         _evTip.style.left = (e.clientX + 14) + 'px';
         _evTip.style.top  = (e.clientY - 32) + 'px';
@@ -5207,19 +5342,29 @@ function renderResumen() {
 
   // ── Gráficos: tarta + barras (en rAF para que el DOM esté pintado) ──
   requestAnimationFrame(function() {
-      var allPos = FPOS.map(function(p,i){return {ticker:p.ticker, nombre:p.nombre, val:p.currentValue, color:COLORS[i%COLORS.length]};})
-                .concat(APOS.map(function(p,i){return {ticker:p.ticker, nombre:p.nombre||p.ticker, val:p.currentValue, color:ACOLORS[i%ACOLORS.length]};}));
+      // ticker para leyenda: Yahoo ticker si existe, si no ISIN[:8]
+      // Para acciones: si p.ticker parece un ISIN (12+ chars alfanum) → usar ISIN[:6]
+      function _lgTicker(p, isAccion) {
+        if (!isAccion) return p.yahoo_ticker || (p.isin||'').substring(0,8);
+        var t = p.ticker||'';
+        return (t.length >= 10 && /^[A-Z]{2}/.test(t)) ? (p.isin||t).substring(0,6) : (t||p.isin.substring(0,6));
+      }
+      var _allTotal = FPOS.reduce(function(s,p){return s+p.currentValue;},0) + APOS.reduce(function(s,p){return s+p.currentValue;},0);
+      var allPos = FPOS.map(function(p,i){return {ticker:_lgTicker(p,false), nombre:p.nombre, val:p.currentValue, pct:_allTotal>0?p.currentValue/_allTotal*100:0, color:COLORS[i%COLORS.length]};})
+                .concat(APOS.map(function(p,i){return {ticker:_lgTicker(p,true), nombre:p.nombre||p.ticker, val:p.currentValue, pct:_allTotal>0?p.currentValue/_allTotal*100:0, color:ACOLORS[i%ACOLORS.length]};}));
     drawPie('rg-pie', allPos.map(function(p){return p.ticker;}), allPos.map(function(p){return p.val;}),
-      allPos.map(function(p){return p.color;}));
+      allPos.map(function(p){return p.color;}),
+      allPos.map(function(p){return {nombre:p.nombre,val:p.val};}));
     var legendEl = document.getElementById('rg-pie-legend');
     // allPos now carries nombre for tooltip
     if (legendEl) legendEl.innerHTML = allPos.map(function(p){
       return '<span style="display:flex;align-items:center;gap:4px;cursor:default" title="'+p.nombre+'">' +
-        '<span style="width:8px;height:8px;border-radius:2px;background:'+p.color+';display:inline-block"></span>' +
-        '<span style="font-weight:600">'+p.nombre.split(' ').slice(0,2).join(' ')+'</span>' +
-        '<span style="color:var(--mu2);font-size:10px">'+p.ticker+'</span></span>';
+        '<span style="width:8px;height:8px;border-radius:2px;background:'+p.color+';flex-shrink:0;display:inline-block"></span>' +
+        '<span style="font-weight:600;font-size:11px">'+p.nombre.split(' ').slice(0,2).join(' ')+'</span>' +
+        '<span style="color:var(--mu2);font-size:10px;font-family:monospace">'+p.pct.toFixed(1)+'%</span>' +
+      '</span>';
     }).join('');
-    var allTickers = FPOS.map(function(p){return p.ticker;}).concat(APOS.map(function(p){return p.ticker;}));
+    var allTickers = FPOS.map(function(p){return p.yahoo_ticker||(p.isin||'').substring(0,8);}).concat(APOS.map(function(p){return _lgTicker(p,true);}));
     // Bug 7: usar gainLossReal para fondos (vs invertido_real) en lugar de gainLoss (vs coste_adq del traspaso)
     var allGL      = FPOS.map(function(p){return p.gainLossReal;}).concat(APOS.map(function(p){return p.gainLoss;}));
     var allColors  = FPOS.map(function(p,i){return COLORS[i%COLORS.length];}).concat(APOS.map(function(p,i){return ACOLORS[i%ACOLORS.length];}));
@@ -5227,38 +5372,7 @@ function renderResumen() {
     drawBarsW('rg-bars', allTickers, allGL, allColors, 0.48, allNames);
   });
 
-  // ── Fiscal detalle ──
-  document.getElementById('rg-fiscal').innerHTML =
-    '<div style="display:flex;flex-direction:column;gap:0">' +
-    ([
-      {l:'Reembolsos fondos ' + yr, v:realFr, c:C(realFr)},
-      {l:'Ventas acciones ' + yr,   v:realAr, c:C(realAr)},
-      {l:'Dividendos ' + yr,        v:dividR, c:'var(--yel)'},
-      null,
-      {l:'Base imponible AHO ' + yr, v:Math.round(baseImp*100)/100, c:'var(--text)', bold:true},
-      {l:'IRPF estimado',            v:-irpfEst, c:'var(--red)', bold:true},
-      {l:'Neto tras impuestos',      v:Math.round(baseImp*100)/100-irpfEst, c:C(Math.round(baseImp*100)/100-irpfEst), bold:true},
-    ].map(function(r){
-      if (!r) return '<div style="height:1px;background:var(--bd);margin:6px 0"></div>';
-      var sign = r.v >= 0 ? '+' : '';
-      return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--s2)">' +
-        '<span style="color:var(--mu2);font-size:12px'+(r.bold?';font-weight:700;color:var(--text)':'')+'">'+r.l+'</span>' +
-        '<span class="mono" style="color:'+r.c+';font-weight:'+(r.bold?'800':'600')+'">'+sign+E(Math.round(r.v*100)/100)+'</span>' +
-      '</div>';
-    }).join('')) +
-    '<div style="margin-top:10px;padding:10px 12px;background:rgba(255,80,80,.06);border:1px solid rgba(255,80,80,.15);border-radius:8px">' +
-      '<div style="font-size:11px;color:var(--mu2);font-weight:600;margin-bottom:4px">Si vendieras todo hoy (hipotético)</div>' +
-      '<div style="display:flex;justify-content:space-between;font-size:12px">' +
-        '<span style="color:var(--mu2)">Plusvalía latente total</span>' +
-        '<span class="mono" style="color:var(--yel)">' + (latenteTotal>=0?'+':'') + E(Math.round(latenteTotal*100)/100) + '</span>' +
-      '</div>' +
-      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px">' +
-        '<span style="color:var(--mu2)">IRPF adicional estimado</span>' +
-        '<span class="mono" style="color:var(--red)">-' + E(Math.round((irpfHipot-irpfEst)*100)/100) + '</span>' +
-      '</div>' +
-    '</div>' +
-    '<div style="margin-top:8px;font-size:10px;color:var(--mu2);line-height:1.5">Tramos ' + yr + '+: 19% ≤6k€ · 21% ≤50k€ · 23% ≤200k€ · 27% ≤300k€ · 28% resto. Solo sobre ganancias realizadas.</div>' +
-    '</div>';
+
 }
 
 
