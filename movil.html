@@ -334,9 +334,22 @@
         <div class="ts-txt" id="m-ts">cargando…</div>
       </div>
       <div class="gp-card">
-        <div class="gp-card-lbl">G/P Histórica</div>
+        <div class="gp-card-lbl">G/P Latente</div>
         <div class="gl-chip" id="m-gl-eur">—</div>
-        <div class="gl-chip" id="m-gl-pct">—</div>
+        <div style="display:flex;flex-direction:column;gap:3px;margin-top:4px">
+          <div style="display:flex;justify-content:space-between;font-size:11px">
+            <span style="color:var(--fondos)">Fondos</span>
+            <span id="m-gl-f" style="font-family:'IBM Plex Mono',monospace;font-weight:700">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px">
+            <span style="color:var(--acciones)">Acciones</span>
+            <span id="m-gl-a" style="font-family:'IBM Plex Mono',monospace;font-weight:700">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:2px;padding-top:4px;border-top:1px solid rgba(255,255,255,.08)">
+            <span style="color:var(--mu2)">Rentabilidad</span>
+            <span id="m-gl-pct" style="font-family:'IBM Plex Mono',monospace;font-weight:700">—</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -486,6 +499,10 @@ function renderEmpty(msg) {
   document.getElementById('m-total').textContent = '— €';
   document.getElementById('m-gl-eur').textContent = '—';
   document.getElementById('m-gl-eur').style.color = 'var(--mu2)';
+  document.getElementById('m-gl-f').textContent = '—';
+  document.getElementById('m-gl-f').style.color = 'var(--mu2)';
+  document.getElementById('m-gl-a').textContent = '—';
+  document.getElementById('m-gl-a').style.color = 'var(--mu2)';
   document.getElementById('m-gl-pct').textContent = '—';
   document.getElementById('m-gl-pct').style.color = 'var(--mu2)';
   document.getElementById('m-inv').textContent = '— €';
@@ -558,7 +575,35 @@ function render() {
   var fgl = fv-fc; var fglp = fglp_fifo;
 
   var av = apos.reduce(function(s,p){return s+p.valor_eur;},0);
-  var ac = apos.reduce(function(s,p){return s+p.coste_adq;},0);
+  // Coste adq. en EUR. Para acciones USD, coste_adq puede estar en USD.
+  // Recalcular desde operaciones (igual que desktop) para coherencia FX:
+  // Recalcular coste EUR abierto desde operaciones (mismo algoritmo que desktop)
+  var _acOpenCost = (function() {
+    var lots = {}, costMap = {};
+    var ops = (DATA.acciones.operaciones||[]).slice().sort(function(a,b){return a.fecha<b.fecha?-1:1;});
+    ops.forEach(function(o) {
+      var isin = o.isin||o.ticker;
+      var imp = parseFloat(o.importe||0)||((parseFloat(o.titulos||0))*(parseFloat(o.precio||0)));
+      // fx_aplicado: importe ya en EUR. Sin él: convertir solo si divisa != EUR
+      var impEur = o.fx_aplicado ? imp : ((o.divisa||'EUR')==='EUR' ? imp : imp/getFX(o.fecha||''));
+      if (!lots[isin]) lots[isin]=[];
+      if (o.tipo==='compra') {
+        lots[isin].push({qty:parseFloat(o.titulos||0), cost:impEur});
+      } else if (o.tipo==='venta') {
+        var rem=parseFloat(o.titulos||0);
+        while(rem>0.00001 && lots[isin] && lots[isin].length) {
+          var lot=lots[isin][0], use=Math.min(rem,lot.qty), frac=use/lot.qty;
+          lot.cost-=frac*lot.cost; lot.qty-=use; rem-=use;
+          if(lot.qty<0.00001) lots[isin].shift();
+        }
+      }
+    });
+    Object.keys(lots).forEach(function(isin){
+      costMap[isin]=lots[isin].reduce(function(s,l){return s+l.cost;},0);
+    });
+    return costMap;
+  })();
+  var ac = apos.reduce(function(s,p){ return s+(_acOpenCost[p.isin||p.ticker]||p.coste_adq); },0);
   var agl = av-ac; var aglp = ac>0?(agl/ac)*100:0;
 
   var yr = new Date().getFullYear().toString();
@@ -567,7 +612,33 @@ function render() {
     .filter(function(r){ return (r.fecha||'').startsWith(yr); })
     .reduce(function(s,r){ return s+(r.gain||0); }, 0);
   var fRealizedTotal = (DATA.fondos.reembolsos_broker||[]).reduce(function(s,r){return s+(r.gain||0);},0);
-  var aRealized = DATA.acciones.total_realized || 0;
+  // Recalcular G/P realizada acciones desde operaciones (igual que desktop)
+  // No usar DATA.acciones.total_realized que puede diferir por FX
+  var aRealized = (function() {
+    var lots = {}, total = 0;
+    var getFXop = function(o) { return o.fx_aplicado ? 1 : (1/getFX(o.fecha||'')); };
+    var ops = (DATA.acciones.operaciones||[]).slice().sort(function(a,b){return a.fecha<b.fecha?-1:1;});
+    ops.forEach(function(o) {
+      var isin = o.isin||o.ticker;
+      var imp = parseFloat(o.importe||0) || (parseFloat(o.titulos||0)*parseFloat(o.precio||0));
+      var _odiv = (o.divisa||'EUR').toUpperCase();
+      var impEur = o.fx_aplicado ? imp : (_odiv==='EUR' ? imp : imp/getFX(o.fecha||''));
+      if (o.tipo==='compra') {
+        if (!lots[isin]) lots[isin]=[];
+        lots[isin].push({qty:parseFloat(o.titulos||0), costEUR:impEur});
+      } else if (o.tipo==='venta') {
+        var rem=parseFloat(o.titulos||0), sellEUR=impEur;
+        var costEUR=0;
+        while(rem>0.0001 && lots[isin] && lots[isin].length) {
+          var lot=lots[isin][0], use=Math.min(lot.qty,rem), frac=use/lot.qty;
+          costEUR+=frac*lot.costEUR; lot.costEUR-=frac*lot.costEUR; lot.qty-=use; rem-=use;
+          if(lot.qty<0.0001) lots[isin].shift();
+        }
+        total += sellEUR - costEUR;
+      }
+    });
+    return Math.round(total*100)/100;
+  })();
   var aDivTotal = (DATA.acciones.operaciones||[]).reduce(function(s,o){
     if(o.tipo!=='dividendo') return s;
     var imp=parseFloat(o.importe||0), div=o.divisa||'EUR', fecha=o.fecha||'';
@@ -596,11 +667,14 @@ function render() {
   var tv=fv+av, tc=fc+ac;
   var tgl=(fv-fc)+(av-ac), tglp=tc>0?(tgl/tc)*100:0;
   // Fix 3: incluir gain fondos cerrados en G/P histórica total
-  var tglHist=tgl+fRealizedTotal+aRealized+aDivTotal+Math.max(0,pmRoboadvisor);
-  // denominador histórico completo: fondos abiertos (inv_real) + acciones + suscripciones fondos cerrados
+  // G/P Historica (sin fondos anteriores) = coincide con desktop 'G/P Historica'
+  var tglHist=tgl+fRealizedTotal+aRealized+aDivTotal;
+  // G/P Historica total (con fondos anteriores) = coincide con desktop 'G/P Historica total'
+  var tglHistTotal=tglHist+Math.max(0,pmRoboadvisor);
   var fiReal=fpos.reduce(function(s,p){return s+(p.invertido_real||p.coste_adq);},0);
   var totalInvRealCompleto=Math.round((fiReal+ac+closedSusc)*100)/100;
   var tglpHist=totalInvRealCompleto>0?(tglHist/totalInvRealCompleto)*100:0;
+  var tglpHistTotal=totalInvRealCompleto>0?(tglHistTotal/totalInvRealCompleto)*100:0;
   // ti: capital actualmente desplegado (lo que muestra "invertido" en el header)
   // = coste_adq fondos abiertos + coste_adq acciones (incluye pm_real heredado de traspasos)
   var ti=Math.round((fc+ac)*100)/100;
@@ -616,10 +690,17 @@ function render() {
   if (hdrA) { hdrA.textContent = fmtP(aglp); hdrA.style.color = clr(aglp); }
 
   document.getElementById('m-total').textContent = fmtE(tv);
-  document.getElementById('m-gl-eur').textContent = (tglHist>=0?'+':'')+fmtE(Math.round(tglHist*100)/100);
-  document.getElementById('m-gl-eur').style.color = clr(tglHist);
-  document.getElementById('m-gl-pct').textContent = fmtP(tglpHist);
-  document.getElementById('m-gl-pct').style.color = clr(tglpHist);
+  // G/P Latente total = fgl + agl
+  var tglLat = Math.round((fgl + agl)*100)/100;
+  var tglLatPct = tc>0?(tglLat/tc)*100:0;
+  document.getElementById('m-gl-eur').textContent = (tglLat>=0?'+':'')+fmtE(tglLat);
+  document.getElementById('m-gl-eur').style.color = clr(tglLat);
+  document.getElementById('m-gl-f').textContent = (fgl>=0?'+':'')+fmtE(Math.round(fgl*100)/100);
+  document.getElementById('m-gl-f').style.color = clr(fgl);
+  document.getElementById('m-gl-a').textContent = (agl>=0?'+':'')+fmtE(Math.round(agl*100)/100);
+  document.getElementById('m-gl-a').style.color = clr(agl);
+  document.getElementById('m-gl-pct').textContent = fmtP(tglLatPct);
+  document.getElementById('m-gl-pct').style.color = clr(tglLatPct);
 
   // Day change per section
   function setDayPill(eurId, pctId, eur, base) {
@@ -819,10 +900,12 @@ function render() {
     }
     return '<div class="pos-card" style="animation-delay:'+(i*0.06)+'s;display:grid;grid-template-columns:1fr auto;">'+
       '<div>'+
-        '<div class="pos-ticker">'+(getYahooUrl(p.yahoo_ticker)
-          ? '<a href="'+getYahooUrl(p.yahoo_ticker)+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--acciones);text-decoration:none">'+p.ticker+'</a>'
-          : '<span style="color:var(--acciones)">'+p.ticker+'</span>')+'</div>'+
-        '<div class="pos-nombre">'+trunc(p.nombre,20)+'</div>'+
+        // Mostrar nombre como título, ticker real como subtítulo si existe
+        (function(){
+          var _rtk = p.yahoo_ticker || ((!p.ticker||/^[A-Z]{2}[A-Z0-9]{10}$/.test(p.ticker))?'':p.ticker);
+          return '<div class="pos-ticker" style="color:var(--text)">'+trunc(p.nombre,22)+'</div>'+
+            (_rtk ? '<div style="font-size:11px;color:var(--acciones);margin-top:1px;font-family:monospace;font-weight:700">'+(getYahooUrl(p.yahoo_ticker)?'<a href="'+getYahooUrl(p.yahoo_ticker)+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--acciones);text-decoration:none">'+_rtk+'</a>':''+_rtk)+'</div>' : '');
+        })()+
         '<div style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
           (dayBadge || '')+
           (updDate ? '<span class="pos-nav-date" style="color:var(--mu2)">'+updDate+'</span>' : '')+

@@ -150,3 +150,26 @@
 
 ### Modal carga
 - Solo se ejecuta si el usuario está autenticado (no antes del login)
+
+## v1.6.0 — Móvil & sincronización de cálculos
+
+### App móvil — sincronización con desktop
+- **G/P Histórica**: ahora coincide con desktop (`latente + realizada + dividendos`, sin fondos anteriores)
+- **G/P Histórica total**: separada de la anterior (incluye fondos anteriores = "Desde el origen")
+- **Acciones G/P**: alineada con desktop mediante FIFO recalculado desde operaciones con FX correcto
+- Operaciones EUR ya no se dividen erróneamente por el tipo de cambio EURUSD
+- `aRealized` recalculado desde operaciones raw (igual que desktop) en lugar de `DATA.acciones.total_realized`
+
+### App móvil — UX
+- KPI principal cambiado de "G/P Histórica" a **G/P Latente** con desglose Fondos / Acciones / Rentabilidad
+- Cards de acciones: ISIN eliminado, se muestra **nombre** como título y Yahoo ticker (si existe) como subtítulo
+- % cambio día en fondos: ahora funciona correctamente con `_prevClose` real del API
+
+### prev_close — infraestructura
+- `portafolio.js`: captura `prev_close` de `precio.php` y lo guarda en `FPOS_RAW._prevClose` / `APOS_RAW._prevClose`
+- `portafolio.js`: incluye `prev_close` en el payload de `save_prices` → `guardar.php`
+- `guardar.php`: persiste `_prevClose` en cada posición de fondos y acciones en `data.json`
+- Resultado: el móvil muestra el % de variación real respecto al último NAV publicado
+
+### Sintaxis
+- Corregido bug `var` huérfano en `movil.html` que impedía el login

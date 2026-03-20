@@ -489,7 +489,8 @@ if ($action === 'save_prices') {
         $isin  = $entry['isin']  ?? '';
         $price = floatval($entry['price'] ?? 0);
         $date  = $entry['date']  ?? $today;
-        if ($isin && $price) $priceMap[$isin] = ['price' => $price, 'date' => $date];
+        $prev = floatval($entry['prev_close'] ?? 0);
+        if ($isin && $price) $priceMap[$isin] = ['price' => $price, 'date' => $date, 'prev_close' => $prev];
     }
     foreach ($data['fondos']['posiciones'] as &$pos) {
         $isin = $pos['isin'] ?? '';
@@ -499,6 +500,7 @@ if ($action === 'save_prices') {
         $pos['precio']        = $nav;
         $pos['valor_mercado'] = round($pos['titulos'] * $nav, 6);
         $pos['plus_minus']    = round($pos['valor_mercado'] - $pos['coste_adq'], 6);
+        if (!empty($priceMap[$isin]['prev_close'])) $pos['_prevClose'] = $priceMap[$isin]['prev_close'];
         // fecha_precio: convertir YYYY-MM-DD a DD/MM/YY para consistencia con el broker
         $parts = explode('-', $date);
         if (count($parts) === 3)
@@ -516,6 +518,7 @@ if ($action === 'save_prices') {
         $price = $priceMap[$isin]['price'];
         $date  = $priceMap[$isin]['date'];
         $pos['precio'] = $price;
+        if (!empty($priceMap[$isin]['prev_close'])) $pos['_prevClose'] = $priceMap[$isin]['prev_close'];
         // valor_mercado en divisa nativa; valor_eur se recalcula con FX del JS — aquí solo precio nativo
         $pos['valor_mercado'] = round($pos['titulos'] * $price, 6);
         // plus_minus en EUR se calcula en JS con FX correcto; aquí dejamos el nativo como referencia

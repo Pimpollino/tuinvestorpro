@@ -2527,12 +2527,15 @@ function savePriceSnapshots() {
   // Fondos
   FPOS_RAW.filter(function(p){ return p.precio && p._priceDate; })
     .forEach(function(p){
-      prices.push({ isin: p.isin, price: p.precio, date: p._priceDate || today });
+      var fEntry = { isin: p.isin, price: p.precio, date: p._priceDate || today };
+      if (p._prevClose) fEntry.prev_close = p._prevClose;
+      prices.push(fEntry);
     });
   // Acciones
   APOS_RAW.filter(function(p){ return p.precio && p._priceDate; })
     .forEach(function(p){
       var entry = { isin: p.isin, price: p.precio, date: p._priceDate || today };
+      if (p._prevClose) entry.prev_close = p._prevClose;
       if (p.divisa && p.divisa !== 'EUR') {
         var fxKeys = Object.keys(FX_TABLE).sort();
         entry.fx = fxKeys.length ? FX_TABLE[fxKeys[fxKeys.length-1]] : null;
@@ -4565,7 +4568,7 @@ function refreshPrices() {
   // Si no hay posiciones con yahoo_ticker solo necesitamos FX y S&P500
   // pending = allPos.length + 2 (FX + S&P500 siempre se fetchean)
 
-  var priceByISIN = {}, dateByISIN = {}, histByISIN = {};
+  var priceByISIN = {}, dateByISIN = {}, histByISIN = {}, prevByISIN = {};
   var fxRate = null;
   var pending = allPos.length + 2; // +1 for FX, +1 for S&P 500
 
@@ -4586,6 +4589,7 @@ function refreshPrices() {
         p.rentabilidad_real = invR > 0 ? Math.round((p.valor_mercado - invR) / invR * 10000) / 100 : 0;
         p._priceDate    = dateByISIN[p.isin] || null;
         p._hist         = histByISIN[p.isin] || null;
+        if (prevByISIN[p.isin] !== undefined) p._prevClose = prevByISIN[p.isin];
         // M4 fix: actualizar fecha_precio en memoria (formato DD/MM/YYYY usado por el auto-refresh)
         // Sin esto, el auto-refresh compara la fecha vieja y se dispara en bucle
         if (p._priceDate) {
@@ -4608,6 +4612,7 @@ function refreshPrices() {
           p.plus_minus    = Math.round((p.valor_eur - p.coste_adq) * 100) / 100;  // EUR - EUR
         }
         p._priceDate = dateByISIN[p.isin] || null;
+        if (prevByISIN[p.isin] !== undefined) p._prevClose = prevByISIN[p.isin];
         p._priceDateUI = (window._priceDateDisplay && window._priceDateDisplay[p.isin])
           ? window._priceDateDisplay[p.isin] : p._priceDate;
       }
@@ -4667,6 +4672,7 @@ function refreshPrices() {
           var _dateOnly = (d.date || '').substring(0, 10);
           dateByISIN[pos.isin] = _dateOnly;
           if (d.hist) histByISIN[pos.isin] = d.hist;
+          if (d.prev_close) prevByISIN[pos.isin] = parseFloat(d.prev_close);
           if (d.time) {
             window._priceDateDisplay = window._priceDateDisplay || {};
             window._priceDateDisplay[pos.isin] = _dateOnly + ' ' + d.time;
