@@ -34,3 +34,19 @@
 ### movil.html
 - **divTotal por tarjeta**: dividendos en USD se convertían a EUR incorrectamente (se sumaba el importe nativo sin conversión). Ahora usa `toEUR()` igual que el resto de la app
 - **Auto-refresh**: `_checkAutoRefresh` solo comprobaba posiciones de fondos para decidir si actualizar precios — si el usuario solo tenía acciones, nunca auto-refrescaba. Ahora comprueba fondos Y acciones, y usa `_priceDate` (ISO) cuando está disponible antes de caer al campo `fecha_precio`
+
+## v1.1.0 — Reorganización de menús
+
+### Nueva estructura de navegación
+- **📊 Cartera**: Resumen global · Fondos (Dashboard + Posiciones) · Acciones (Dashboard + Posiciones)
+- **📈 Análisis**: Fondos (Análisis + Fiscal + Rebalanceo) · Acciones (Análisis + Fiscal)
+- **🎯 Planificación**: 🔥 FIRE · Metas · Jubilación · Optimizador venta
+- **⚙️ Gestión**: Ops. Fondos · Ops. Acciones · Importar datos
+
+### Cambios técnicos
+- `switchSection()` reemplaza a `switchBroker()` como función principal de navegación
+- `switchBroker()` se mantiene como compatibilidad retroactiva interna
+- `ST()` actualiza ahora el botón de sección activo además del sub-botón
+- Vista inicial: **Resumen global** (antes era Fondos Dashboard)
+- FIRE promovido a sección Planificación (antes estaba en Fondos)
+- Importar datos movido a Gestión (antes estaba en Resumen global)
