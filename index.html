@@ -32,8 +32,10 @@ button,input,select{font-family:inherit;cursor:pointer}
 #broker-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;gap:0;height:44px}
 .bk-btn{background:transparent;border:none;border-bottom:2px solid transparent;padding:0 20px;height:44px;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--mu2);transition:all .18s;display:flex;align-items:center;gap:7px}
 .bk-btn:hover{color:var(--mu2)}
-.bk-btn.on[data-broker="fondos"]{color:var(--fondos);border-bottom-color:var(--fondos)}
-.bk-btn.on[data-broker="acciones"]{color:var(--acciones);border-bottom-color:var(--acciones)}
+.bk-btn.on[data-section="cartera"]{color:var(--ac);border-bottom-color:var(--ac)}
+.bk-btn.on[data-section="analisis"]{color:var(--fondos);border-bottom-color:var(--fondos)}
+.bk-btn.on[data-section="planificacion"]{color:var(--pur);border-bottom-color:var(--pur)}
+.bk-btn.on[data-section="gestion"]{color:var(--mu2);border-bottom-color:var(--mu2)}
 .bk-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
 .bk-summary{margin-left:auto;display:flex;gap:0;font-size:11px;color:var(--mu)}
 .bk-summary .bks{display:flex;flex-direction:column;align-items:flex-end;gap:2px;padding:0 11px;border-left:1px solid var(--bd);min-width:72px}
@@ -47,8 +49,11 @@ button,input,select{font-family:inherit;cursor:pointer}
 #subnav-inner{max-width:1400px;margin:0 auto;height:46px;display:flex;align-items:center;gap:2px}
 .nb{background:transparent;border:1px solid transparent;color:var(--mu);border-radius:8px;padding:6px 13px;font-weight:700;font-size:11px;letter-spacing:.04em;text-transform:uppercase;transition:all .15s}
 .nb:hover{color:var(--mu2);border-color:var(--bd)}
-.nb.on[data-broker="fondos"]{background:rgba(0,229,176,.08);border-color:rgba(0,229,176,.3);color:var(--fondos)}
-.nb.on[data-broker="acciones"]{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.3);color:var(--acciones)}
+.nb.on[data-section="cartera"]{background:rgba(0,229,176,.08);border-color:rgba(0,229,176,.3);color:var(--ac)}
+.nb.on[data-section="analisis"]{background:rgba(0,175,255,.08);border-color:rgba(0,175,255,.3);color:var(--fondos)}
+.nb.on[data-section="planificacion"]{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.3);color:var(--pur)}
+.nb.on[data-section="gestion"]{background:rgba(120,120,140,.08);border-color:rgba(120,120,140,.3);color:var(--mu2)}
+.nb-sep{color:var(--bd);font-size:16px;margin:0 2px;user-select:none;align-self:center;display:inline-block}
 
 /* ── LAYOUT ── */
 #wrap{max-width:1400px;margin:0 auto;padding:24px 32px;position:relative;z-index:1}
@@ -211,42 +216,55 @@ th.sort-desc::after { content:' ↓'; opacity:1; color:var(--ac); }
   </div>
 </div></div>
 
-<!-- BROKER SWITCHER -->
+<!-- SECTION SWITCHER -->
 <div id="broker-bar"><div id="broker-inner">
-  <button class="bk-btn on" data-broker="fondos" onclick="switchBroker('fondos',this)">
-    <span class="bk-dot" style="background:var(--fondos)"></span>Fondos de inversión
+  <button class="bk-btn on" data-section="cartera" onclick="switchSection('cartera',this)">
+    <span class="bk-dot" style="background:var(--ac)"></span>📊 Cartera
   </button>
-  <button class="bk-btn" data-broker="acciones" onclick="switchBroker('acciones',this)">
-    <span class="bk-dot" style="background:var(--acciones)"></span>Acciones &amp; ETF
+  <button class="bk-btn" data-section="analisis" onclick="switchSection('analisis',this)">
+    <span class="bk-dot" style="background:var(--fondos)"></span>📈 Análisis
   </button>
-  <button class="bk-btn" data-broker="resumen" onclick="switchBroker('resumen',this)">
-    <span class="bk-dot" style="background:var(--mu2)"></span>Resumen global
+  <button class="bk-btn" data-section="planificacion" onclick="switchSection('planificacion',this)">
+    <span class="bk-dot" style="background:var(--pur)"></span>🎯 Planificación
   </button>
-  <button class="bk-btn" data-broker="desinversion" onclick="switchBroker('desinversion',this)">
-    <span class="bk-dot" style="background:#f43f5e"></span>Desinversión
+  <button class="bk-btn" data-section="gestion" onclick="switchSection('gestion',this)">
+    <span class="bk-dot" style="background:var(--mu2)"></span>⚙️ Gestión
   </button>
   <div class="bk-summary" id="bk-summary"></div>
 </div></div>
 
 <!-- SUB-NAV -->
 <div id="subnav"><div id="subnav-inner">
-  <button class="nb on" data-broker="fondos" id="nb-fondos-dashboard" onclick="ST('fondos','dashboard',this)">Dashboard</button>
-  <button class="nb"    data-broker="fondos" id="nb-fondos-cartera"   onclick="ST('fondos','cartera',this)">Cartera</button>
-  <button class="nb"    data-broker="fondos" id="nb-fondos-ops"       onclick="ST('fondos','ops',this)">Operaciones</button>
-  <button class="nb"    data-broker="fondos" id="nb-fondos-analisis"  onclick="ST('fondos','analisis',this)">Análisis</button>
-  <button class="nb"    data-broker="fondos" id="nb-fondos-fiscal"    onclick="ST('fondos','fiscal',this)">Fiscal</button>
-  <button class="nb"    data-broker="fondos" id="nb-fondos-rebalanceo" onclick="ST('fondos','rebalanceo',this)">Rebalanceo</button>
-  <button class="nb"    data-broker="fondos" id="nb-fondos-fire"       onclick="ST('fondos','fire',this)">🔥 FIRE</button>
-  <button class="nb" style="display:none" data-broker="acciones" id="nb-acciones-dashboard" onclick="ST('acciones','dashboard',this)">Dashboard</button>
-  <button class="nb" style="display:none" data-broker="acciones" id="nb-acciones-cartera"   onclick="ST('acciones','cartera',this)">Cartera</button>
-  <button class="nb" style="display:none" data-broker="acciones" id="nb-acciones-ops"       onclick="ST('acciones','ops',this)">Operaciones</button>
-  <button class="nb" style="display:none" data-broker="acciones" id="nb-acciones-analisis"  onclick="ST('acciones','analisis',this)">Análisis</button>
-  <button class="nb" style="display:none" data-broker="acciones" id="nb-acciones-fiscal"    onclick="ST('acciones','fiscal',this)">Fiscal</button>
-  <button class="nb" style="display:none" data-broker="resumen" id="nb-resumen-dashboard" onclick="ST('resumen','dashboard',this)">Resumen</button>
-  <button class="nb" style="display:none" data-broker="resumen" id="nb-resumen-importar" onclick="ST('resumen','importar',this)">📥 Importar datos</button>
-    <button class="nb" style="display:none" data-broker="desinversion" id="nb-desinversion-optimizador" onclick="ST('desinversion','optimizador',this)">🎯 Optimizador venta</button>
-  <button class="nb" style="display:none" data-broker="desinversion" id="nb-desinversion-metas"       onclick="ST('desinversion','metas',this)">🎓 Metas de ahorro</button>
-  <button class="nb" style="display:none" data-broker="desinversion" id="nb-desinversion-jubilacion"  onclick="ST('desinversion','jubilacion',this)">🏖 Jubilación &amp; herencia</button>
+
+  <!-- ── CARTERA ── -->
+  <button class="nb on"  data-section="cartera" id="nb-resumen-dashboard"      onclick="ST('resumen','dashboard',this)">📊 Resumen global</button>
+  <span class="nb-sep" data-section="cartera">|</span>
+  <button class="nb"     data-section="cartera" id="nb-fondos-dashboard"        onclick="ST('fondos','dashboard',this)">🟢 Fondos</button>
+  <button class="nb"     data-section="cartera" id="nb-fondos-cartera"          onclick="ST('fondos','cartera',this)">Posiciones</button>
+  <span class="nb-sep" data-section="cartera">|</span>
+  <button class="nb"     data-section="cartera" id="nb-acciones-dashboard"      onclick="ST('acciones','dashboard',this)">🟣 Acciones</button>
+  <button class="nb"     data-section="cartera" id="nb-acciones-cartera"        onclick="ST('acciones','cartera',this)">Posiciones</button>
+
+  <!-- ── ANÁLISIS ── -->
+  <button class="nb"     data-section="analisis" style="display:none" id="nb-fondos-analisis"   onclick="ST('fondos','analisis',this)">🟢 Fondos</button>
+  <button class="nb"     data-section="analisis" style="display:none" id="nb-fondos-fiscal"     onclick="ST('fondos','fiscal',this)">Fiscal</button>
+  <button class="nb"     data-section="analisis" style="display:none" id="nb-fondos-rebalanceo" onclick="ST('fondos','rebalanceo',this)">Rebalanceo</button>
+  <span class="nb-sep"   data-section="analisis" style="display:none">|</span>
+  <button class="nb"     data-section="analisis" style="display:none" id="nb-acciones-analisis" onclick="ST('acciones','analisis',this)">🟣 Acciones</button>
+  <button class="nb"     data-section="analisis" style="display:none" id="nb-acciones-fiscal"   onclick="ST('acciones','fiscal',this)">Fiscal</button>
+
+  <!-- ── PLANIFICACIÓN ── -->
+  <button class="nb"     data-section="planificacion" style="display:none" id="nb-fondos-fire"              onclick="ST('fondos','fire',this)">🔥 FIRE</button>
+  <span class="nb-sep"   data-section="planificacion" style="display:none">|</span>
+  <button class="nb"     data-section="planificacion" style="display:none" id="nb-desinversion-metas"       onclick="ST('desinversion','metas',this)">🎓 Metas</button>
+  <button class="nb"     data-section="planificacion" style="display:none" id="nb-desinversion-jubilacion"  onclick="ST('desinversion','jubilacion',this)">🏖 Jubilación</button>
+  <button class="nb"     data-section="planificacion" style="display:none" id="nb-desinversion-optimizador" onclick="ST('desinversion','optimizador',this)">🎯 Optimizador</button>
+
+  <!-- ── GESTIÓN ── -->
+  <button class="nb"     data-section="gestion" style="display:none" id="nb-fondos-ops"     onclick="ST('fondos','ops',this)">🟢 Ops. Fondos</button>
+  <button class="nb"     data-section="gestion" style="display:none" id="nb-acciones-ops"   onclick="ST('acciones','ops',this)">🟣 Ops. Acciones</button>
+  <button class="nb"     data-section="gestion" style="display:none" id="nb-resumen-importar" onclick="ST('resumen','importar',this)">📥 Importar datos</button>
+
 </div></div>
 
 <div id="wrap">
@@ -254,7 +272,7 @@ th.sort-desc::after { content:' ↓'; opacity:1; color:var(--ac); }
 <!-- ═══════════════════════════════════════════ FONDOS ═══════════════════════════════════════════ -->
 
 <!-- FONDOS · DASHBOARD -->
-<div id="view-fondos-dashboard" class="view on">
+<div id="view-fondos-dashboard" class="view">
   <div class="krow" id="f-kd"></div>
   <div class="gdb">
     <div class="panel">
@@ -862,7 +880,7 @@ th.sort-desc::after { content:' ↓'; opacity:1; color:var(--ac); }
 </div>
 
 <!-- ═══════════════════════════════════════════ RESUMEN GLOBAL ═══════════════════════════════════════════ -->
-<div class="view" id="view-resumen-dashboard">
+<div class="view on" id="view-resumen-dashboard">
 
   <!-- KPIs -->
   <div id="rg-kd"></div>

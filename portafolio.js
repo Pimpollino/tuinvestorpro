@@ -908,32 +908,59 @@ function calcRealizedFondos() {
 // ════════════════════════════════════════════════════════════════
 //  NAVIGATION
 // ════════════════════════════════════════════════════════════════
+// ── Secciones del menú principal ─────────────────────────────────
+var currentSection = 'cartera';
+
+// Destino por defecto de cada sección
+var _sectionDefaults = {
+  'cartera':       function(){ ST('resumen','dashboard', document.getElementById('nb-resumen-dashboard')); },
+  'analisis':      function(){ ST('fondos','analisis',   document.getElementById('nb-fondos-analisis'));   },
+  'planificacion': function(){ ST('fondos','fire',        document.getElementById('nb-fondos-fire'));       },
+  'gestion':       function(){ ST('fondos','ops',         document.getElementById('nb-fondos-ops'));        }
+};
+
+function switchSection(section, btn) {
+  currentSection = section;
+  // Actualizar botones top
+  document.querySelectorAll('.bk-btn').forEach(function(b){ b.classList.remove('on'); });
+  if (btn) btn.classList.add('on');
+  // Mostrar/ocultar sub-botones y separadores por sección
+  document.querySelectorAll('.nb[data-section], .nb-sep[data-section]').forEach(function(b){
+    b.style.display = b.dataset.section === section ? '' : 'none';
+  });
+  // Navegar al destino por defecto de la sección
+  if (_sectionDefaults[section]) _sectionDefaults[section]();
+}
+
+// Compatibilidad retroactiva — interno, no usado en HTML ya
 function switchBroker(broker, btn) {
-  currentBroker = broker;
-  document.querySelectorAll('.bk-btn').forEach(function(b){b.classList.remove('on');});
-  btn.classList.add('on');
-  document.querySelectorAll('.nb[data-broker="fondos"]').forEach(function(b){b.style.display=broker==='fondos'?'':'none';});
-  document.querySelectorAll('.nb[data-broker="acciones"]').forEach(function(b){b.style.display=broker==='acciones'?'':'none';});
-  if (broker==='resumen') {
-    document.querySelectorAll('.nb').forEach(function(b){b.style.display='none';});
-    document.querySelectorAll('.nb[data-broker="resumen"]').forEach(function(b){b.style.display='';});
-    ST('resumen','dashboard', document.getElementById('nb-resumen-dashboard'));
-    return;
-  }
-  if (broker==='desinversion') {
-    document.querySelectorAll('.nb').forEach(function(b){b.style.display='none';});
-    document.querySelectorAll('.nb[data-broker="desinversion"]').forEach(function(b){b.style.display='';});
-    ST('desinversion','optimizador', document.getElementById('nb-desinversion-optimizador'));
-    return;
-  }
-  ST(broker, 'dashboard', document.getElementById('nb-'+broker+'-dashboard'));
+  var sectionMap = {
+    'fondos':       'cartera',
+    'acciones':     'cartera',
+    'resumen':      'cartera',
+    'desinversion': 'planificacion'
+  };
+  var section = sectionMap[broker] || 'cartera';
+  var sBtn = document.querySelector('.bk-btn[data-section="'+section+'"]');
+  switchSection(section, sBtn);
 }
 function ST(broker, name, btn) {
+  currentBroker = broker;  // mantener compatibilidad interna
   document.querySelectorAll('.view').forEach(function(v){v.classList.remove('on');});
   document.querySelectorAll('.nb').forEach(function(b){b.classList.remove('on');});
   var el=document.getElementById('view-'+broker+'-'+name);
   if (el) el.classList.add('on');
   if (btn) btn.classList.add('on');
+  // Mantener el botón de sección top activo
+  var activeSection = btn ? btn.dataset.section : currentSection;
+  if (activeSection) {
+    var topBtn = document.querySelector('.bk-btn[data-section="'+activeSection+'"]');
+    if (topBtn) {
+      document.querySelectorAll('.bk-btn').forEach(function(b){ b.classList.remove('on'); });
+      topBtn.classList.add('on');
+      currentSection = activeSection;
+    }
+  }
   setTimeout(function() {
     if (broker==='resumen'&&name==='dashboard') { renderResumen(); }
     if (broker==='fondos'&&name==='dashboard') {
@@ -1648,11 +1675,11 @@ function afToggleFxField() {
 // cargado aún cuando el panel post-importación está visible).
 function _corregirFxOp(opJson) {
   var op = (typeof opJson === 'string') ? JSON.parse(opJson) : opJson;
-  // Navegar a pestaña Acciones → Operaciones
-  var btnAcc = document.querySelector('.bk-btn[data-broker="acciones"]');
-  if (btnAcc) switchBroker('acciones', btnAcc);
-  var nbOps = document.getElementById('nb-acciones-operaciones');
-  if (nbOps) ST('acciones','operaciones', nbOps);
+  // Navegar a sección Gestión → Operaciones Acciones
+  var btnGestion = document.querySelector('.bk-btn[data-section="gestion"]');
+  switchSection('gestion', btnGestion);
+  var nbOps = document.getElementById('nb-acciones-ops');
+  if (nbOps) ST('acciones','ops', nbOps);
   setTimeout(function() {
     var form = document.getElementById('a-op-form');
     if (!form) return;
@@ -3555,10 +3582,9 @@ function init(data) {
   renderFondos();
   renderAcciones();
 
+  // Render inicial: Resumen global es la vista por defecto en V1
   setTimeout(function(){
-    drawBench('c-bench');
-    drawFundPerf('c-fund-perf');
-    drawPie('c-pie-f', FPOS.map(function(p){return p.ticker;}), FPOS.map(function(p){return p.currentValue;}), COLORS);
+    renderResumen();
   }, 80);
 
   // Auto-búsqueda de tickers faltantes antes del refresh
