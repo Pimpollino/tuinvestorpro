@@ -645,6 +645,18 @@ function initMaps(data) {
     }
   });
 }
+// ── Configuración de índices de Benchmark ────────────────────────
+var BENCH_INDICES = {
+  '^GSPC':     { name: 'S&P 500',       key: 'SP500',      color: '#f5c842', enabled: true  },
+  'URTH':      { name: 'MSCI World',    key: 'MSCI_WORLD', color: '#00e5b0', enabled: false },
+  '^IBEX':     { name: 'IBEX 35',       key: 'IBEX35',     color: '#f97316', enabled: false },
+  '^STOXX50E': { name: 'Euro Stoxx 50', key: 'STOXX50',    color: '#60a5fa', enabled: false },
+  'GC=F':      { name: 'Oro',           key: 'GOLD',       color: '#f5c842', enabled: false },
+  '^NDX':      { name: 'Nasdaq 100',    key: 'NDX100',     color: '#a78bfa', enabled: false }
+};
+// Estado persistente (sobrescrito por data.json si existe)
+window._benchConfig = window._benchConfig || null;
+
 var COLORS  = ['#00e5b0','#0af','#f5c842','#a78bfa','#f97316','#f43f5e','#34d399','#60a5fa'];
 var ACOLORS = ['#a78bfa','#f97316','#f43f5e','#60a5fa','#f5c842','#34d399','#0af','#00e5b0'];
 var currentBroker = 'fondos';
@@ -905,9 +917,732 @@ function calcRealizedFondos() {
   return {reembolsos:reembolsos, traspasos:traspasos};
 }
 
+
+// ════════════════════════════════════════════════════════════════
+//  BENCHMARK MEJORADO — V1
+// ════════════════════════════════════════════════════════════════
+
+// Calcular CAGR (tasa anualizada de crecimiento)
+function calcCAGR(startVal, endVal, years) {
+  if (!startVal || startVal <= 0 || years <= 0) return null;
+  return (Math.pow(endVal / startVal, 1 / years) - 1) * 100;
+}
+
+// Renderizar panel de benchmark en Análisis
+function renderBenchmarkPanel() {
+  var el = document.getElementById('bench-panel');
+  if (!el) return;
+
+  // ── Configuración de índices activos ──────────────────────────
+  var html = '<div style="margin-bottom:16px">';
+  html += '<div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:10px">Índices de referencia</div>';
+  html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+
+  Object.keys(BENCH_INDICES).forEach(function(sym) {
+    var idx = BENCH_INDICES[sym];
+    var hasData = PRICE_HISTORY[idx.key] && PRICE_HISTORY[idx.key].length >= 2;
+    var checked = idx.enabled ? 'checked' : '';
+    var opacity = hasData ? '1' : '0.4';
+    var title   = hasData ? idx.name : idx.name + ' (sin datos — actualiza precios)';
+    html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;opacity:'+opacity+';padding:5px 10px;border:1px solid var(--bd);border-radius:6px;font-size:12px" title="'+title+'">' +
+      '<input type="checkbox" '+checked+' data-sym="'+sym+'" onchange="benchToggle(this)" style="accent-color:'+idx.color+'"> ' +
+      '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+idx.color+'"></span> ' +
+      idx.name +
+    '</label>';
+  });
+  html += '</div></div>';
+
+  // ── Gráfico comparativo ───────────────────────────────────────
+  html += '<div class="panel" style="margin-bottom:16px"><div class="ph"><span class="ph-t">Rendimiento comparado — cartera vs índices</span></div><div class="pb">';
+  html += '<canvas id="c-bench-compare" height="280"></canvas>';
+  html += '</div></div>';
+
+  // ── Tabla CAGR ────────────────────────────────────────────────
+  html += '<div class="panel"><div class="ph"><span class="ph-t">Rentabilidad anualizada (CAGR)</span></div><div class="pb" id="bench-cagr-table"></div></div>';
+
+  el.innerHTML = html;
+
+  // Dibujar
+  setTimeout(function() {
+    drawBenchCompare();
+    renderCAGRTable();
+  }, 50);
+}
+
+function benchToggle(cb) {
+  var sym = cb.dataset.sym;
+  if (BENCH_INDICES[sym]) {
+    BENCH_INDICES[sym].enabled = cb.checked;
+    drawBenchCompare();
+    renderCAGRTable();
+    // Persistir configuración
+    _saveBenchConfig();
+  }
+}
+
+function _saveBenchConfig() {
+  var config = {};
+  Object.keys(BENCH_INDICES).forEach(function(sym) {
+    config[sym] = BENCH_INDICES[sym].enabled;
+  });
+  fetch('guardar.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: AUTH_HASH_CLIENT, action: 'save_bench_config', config: config })
+  }).catch(function(){});
+}
+
+function drawBenchCompare() {
+  var cv = document.getElementById('c-bench-compare');
+  if (!cv) return;
+
+  // ── Construir series ─────────────────────────────────────────
+  var series = [];
+
+  // Cartera propia: usar PRICE_HISTORY de fondos para el valor real
+  // Proxy: reconstruir valor relativo desde snapshots de posiciones
+  var cartSeries = buildCarteSeries();
+  if (cartSeries && cartSeries.length >= 2) {
+    var base = cartSeries[0].pct;
+    series.push({
+      name:   'Mi Cartera',
+      color:  'var(--ac)',
+      points: cartSeries.map(function(p){ return { date: p.date, pct: p.pct - base }; }),
+      dash:   []
+    });
+  }
+
+  // Índices seleccionados
+  Object.keys(BENCH_INDICES).forEach(function(sym) {
+    var idx = BENCH_INDICES[sym];
+    if (!idx.enabled) return;
+    var hist = PRICE_HISTORY[idx.key];
+    if (!hist || hist.length < 2) return;
+    // Rebase desde la primera fecha disponible de la cartera
+    var earliest = cartSeries && cartSeries.length ? cartSeries[0].date : hist[0].date;
+    var baseSnap = null;
+    for (var i = 0; i < hist.length; i++) {
+      if (hist[i].date >= earliest) { baseSnap = hist[i]; break; }
+    }
+    if (!baseSnap) baseSnap = hist[0];
+    var points = hist.filter(function(s){ return s.date >= baseSnap.date; })
+      .map(function(s){ return { date: s.date, pct: (s.price - baseSnap.price) / baseSnap.price * 100 }; });
+    if (points.length >= 2) {
+      series.push({ name: idx.name, color: idx.color, points: points, dash: [5,3] });
+    }
+  });
+
+  if (!series.length) {
+    cv.style.display = 'none';
+    var msg = document.getElementById('bench-no-data-msg');
+    if (!msg) {
+      msg = document.createElement('div');
+      msg.id = 'bench-no-data-msg';
+      msg.style.cssText = 'padding:32px;text-align:center;color:var(--mu);font-size:13px';
+      cv.parentNode.insertBefore(msg, cv);
+    }
+    msg.style.display = '';
+    msg.innerHTML = '⏳ Sin datos suficientes todavía — el gráfico se enriquecerá con el tiempo.<br>' +
+      '<span style="font-size:12px;color:var(--mu2)">Activa índices y pulsa <strong>Actualizar</strong> para acumular historial diario.</span>';
+    return;
+  }
+  var msg2 = document.getElementById('bench-no-data-msg');
+  if (msg2) msg2.style.display = 'none';
+  cv.style.display = '';
+
+  // ── Render Canvas ─────────────────────────────────────────────
+  var W = cv.parentElement.clientWidth || 800;
+  if (W < 200) W = 600;
+  var H = 280;
+  cv.width = W; cv.height = H;
+  var ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  var pad = { t:16, r:16, b:32, l:52 };
+  var iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
+
+  // Escala Y
+  var allPcts = [0];
+  series.forEach(function(s){ s.points.forEach(function(p){ allPcts.push(p.pct); }); });
+  var mn = Math.min.apply(null, allPcts), mx = Math.max.apply(null, allPcts);
+  var pad_pct = Math.max((mx - mn) * 0.08, 1);
+  mn -= pad_pct; mx += pad_pct;
+  var rng = mx - mn || 1;
+
+  // Rango de fechas
+  var allDates = [];
+  series.forEach(function(s){ s.points.forEach(function(p){ allDates.push(p.date); }); });
+  allDates = allDates.filter(function(v,i,a){ return a.indexOf(v)===i; }).sort();
+  var n = allDates.length; if (!n) return;
+  var d0 = new Date(allDates[0]).getTime();
+  var d1 = new Date(allDates[n-1]).getTime();
+
+  function tx(date) { return pad.l + ((new Date(date).getTime()-d0)/Math.max(d1-d0,1))*iW; }
+  function ty(v)    { return pad.t + iH - ((v-mn)/rng)*iH; }
+
+  // Grid
+  ctx.strokeStyle='#1a2a3d'; ctx.lineWidth=1;
+  for (var gi=0; gi<=4; gi++) {
+    var gy=pad.t+iH*(gi/4), gv=mx-rng*(gi/4);
+    ctx.beginPath(); ctx.moveTo(pad.l,gy); ctx.lineTo(pad.l+iW,gy); ctx.stroke();
+    ctx.fillStyle='#4a6785'; ctx.font='10px monospace'; ctx.textAlign='right';
+    ctx.fillText((gv>=0?'+':'')+gv.toFixed(1)+'%', pad.l-3, gy+3);
+  }
+  // Línea cero
+  ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(pad.l,ty(0)); ctx.lineTo(pad.l+iW,ty(0)); ctx.stroke();
+
+  // X labels
+  ctx.fillStyle='#4a6785'; ctx.font='10px monospace'; ctx.textAlign='center';
+  var xStep = Math.max(1, Math.floor(allDates.length/7));
+  allDates.forEach(function(dt,i){
+    if (i%xStep!==0 && i!==n-1) return;
+    var p=dt.split('-'); ctx.fillText(p[2]+'/'+p[1].replace(/^0/,'')+"'"+p[0].substring(2), tx(dt), H-6);
+  });
+
+  // Series
+  series.forEach(function(s) {
+    var color = s.color.startsWith('var(') ? getComputedStyle(document.documentElement).getPropertyValue(s.color.slice(4,-1)).trim() || '#00e5b0' : s.color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = s.dash.length ? 1.5 : 2.5;
+    ctx.setLineDash(s.dash);
+    ctx.globalAlpha = s.dash.length ? 0.75 : 1.0;
+    ctx.beginPath();
+    var started = false;
+    s.points.forEach(function(p) {
+      var x=tx(p.date), y=ty(p.pct);
+      started ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+      started=true;
+    });
+    ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1.0;
+
+    // Punto y etiqueta finales
+    var last=s.points[s.points.length-1]; if(!last) return;
+    ctx.beginPath(); ctx.arc(tx(last.date), ty(last.pct), s.dash.length?2:3, 0, Math.PI*2);
+    ctx.fillStyle=color; ctx.fill();
+    ctx.fillStyle=color; ctx.font='bold 9px monospace'; ctx.textAlign='right';
+    ctx.fillText((last.pct>=0?'+':'')+last.pct.toFixed(1)+'%', tx(last.date)-5, ty(last.pct)-5);
+  });
+
+  // Leyenda
+  var legY = pad.t + 4;
+  series.forEach(function(s,i) {
+    var color = s.color.startsWith('var(') ? '#00e5b0' : s.color;
+    var legX  = pad.l + i*140;
+    if (legX + 130 > W) return;
+    ctx.beginPath(); ctx.moveTo(legX, legY+5); ctx.lineTo(legX+16, legY+5);
+    ctx.strokeStyle=color; ctx.lineWidth=s.dash.length?1.5:2.5;
+    ctx.setLineDash(s.dash); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#dde6f0'; ctx.font='10px monospace'; ctx.textAlign='left';
+    ctx.fillText(s.name, legX+20, legY+8);
+  });
+
+  // Tooltip
+  var _btip = document.getElementById('_bench-tip');
+  if (!_btip) {
+    _btip=document.createElement('div');
+    _btip.id='_bench-tip';
+    _btip.style.cssText='position:fixed;pointer-events:none;display:none;background:#0d1420;border:1px solid #1e3a5a;border-radius:6px;padding:5px 10px;font-size:12px;color:#dde6f0;z-index:9999;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.5)';
+    document.body.appendChild(_btip);
+  }
+  cv.onmousemove = function(e) {
+    var rect=cv.getBoundingClientRect();
+    var mx2=(e.clientX-rect.left)*(cv.width/rect.width);
+    if (mx2<pad.l||mx2>pad.l+iW){_btip.style.display='none';return;}
+    var bestDate=null, bestDist=Infinity;
+    series[0].points.forEach(function(p){
+      var d=Math.abs(tx(p.date)-mx2); if(d<bestDist){bestDist=d;bestDate=p.date;}
+    });
+    if (!bestDate){_btip.style.display='none';return;}
+    var parts=bestDate.split('-');
+    var rows=series.map(function(s){
+      var pt=null,bd=Infinity;
+      s.points.forEach(function(p){var d=Math.abs(new Date(p.date)-new Date(bestDate));if(d<bd){bd=d;pt=p;}});
+      if(!pt)return'';
+      var c=s.color.startsWith('var(')?'#00e5b0':s.color;
+      return'<div style="display:flex;justify-content:space-between;gap:16px;margin-top:2px">'+
+        '<span style="color:'+c+'">'+s.name+'</span>'+
+        '<span style="font-family:monospace;font-weight:700">'+(pt.pct>=0?'+':'')+pt.pct.toFixed(2)+'%</span></div>';
+    }).join('');
+    _btip.innerHTML='<strong style="color:#7a98b8">'+parts[2]+'/'+parts[1]+'/'+parts[0]+'</strong>'+rows;
+    _btip.style.display='block';
+    _btip.style.left=(e.clientX+14)+'px';
+    _btip.style.top=(e.clientY-32)+'px';
+  };
+  cv.onmouseleave=function(){_btip.style.display='none';};
+}
+
+// Construir serie de rentabilidad de la cartera propia desde snapshots
+function buildCarteSeries() {
+  // Estrategia: para cada fondo con historial, calcular % desde su primer snapshot.
+  // Luego promediar ponderado por coste_adq entre todos los fondos con suficientes datos.
+  // Requiere mínimo MIN_SNAPS snapshots y 2 fondos, o 1 fondo con muchos snapshots.
+  var MIN_SNAPS = 5;
+
+  var fondosSeries = [];
+  FPOS_RAW.forEach(function(p) {
+    var hist = PRICE_HISTORY[p.isin];
+    if (!hist || hist.length < 2) return;
+    var base = hist[0].price;
+    if (!base || base <= 0) return;
+    var peso = p.coste_adq || 1;
+    fondosSeries.push({
+      peso:   peso,
+      points: hist.map(function(s){ return { date: s.date, pct: (s.price - base) / base * 100 }; })
+    });
+  });
+
+  if (!fondosSeries.length) return null;
+
+  // Comprobar suficientes datos: al menos un fondo con MIN_SNAPS snapshots
+  var hasEnough = fondosSeries.some(function(f){ return f.points.length >= MIN_SNAPS; });
+  if (!hasEnough) return null;  // sin datos suficientes → no mostrar serie cartera
+
+  // Reunir todas las fechas disponibles (union)
+  var dateSet = {};
+  fondosSeries.forEach(function(f){
+    f.points.forEach(function(p){ dateSet[p.date] = true; });
+  });
+  var dates = Object.keys(dateSet).sort();
+  if (dates.length < 2) return null;
+
+  var totalPeso = fondosSeries.reduce(function(s,f){ return s+f.peso; }, 0);
+  if (!totalPeso) return null;
+
+  return dates.map(function(date) {
+    var sumW = 0, sumPeso = 0;
+    fondosSeries.forEach(function(f) {
+      // Buscar el punto más cercano anterior o igual a esta fecha
+      var pt = null;
+      for (var i = f.points.length-1; i >= 0; i--) {
+        if (f.points[i].date <= date) { pt = f.points[i]; break; }
+      }
+      if (pt) { sumW += pt.pct * f.peso; sumPeso += f.peso; }
+    });
+    var pct = sumPeso > 0 ? sumW / sumPeso : 0;
+    return { date: date, pct: pct };
+  });
+}
+
+// Tabla CAGR
+function renderCAGRTable() {
+  var el = document.getElementById('bench-cagr-table');
+  if (!el) return;
+
+  var periods = [
+    { label: '1 año',   days: 365  },
+    { label: '3 años',  days: 1095 },
+    { label: '5 años',  days: 1825 },
+    { label: 'Total',   days: null  }
+  ];
+
+  // Cartera: usar el fondo con más historial como proxy de rentabilidad
+  var cartPH = null, cartPHLen = 0;
+  FPOS_RAW.forEach(function(p) {
+    var h = PRICE_HISTORY[p.isin];
+    if (h && h.length > cartPHLen) { cartPH = h; cartPHLen = h.length; }
+  });
+
+  // CAGR fiable solo cuando el historial real cubre >= 50% del período solicitado
+  function cagrForHist(hist, per) {
+    if (!hist || hist.length < 2) return null;
+    var last = hist[hist.length-1];
+    var targetDate = per.days
+      ? new Date(new Date(last.date).getTime() - per.days*86400000).toISOString().substring(0,10)
+      : hist[0].date;
+    // Buscar base: primer snapshot >= targetDate
+    var base = null;
+    for (var i = 0; i < hist.length; i++) {
+      if (hist[i].date >= targetDate) { base = hist[i]; break; }
+    }
+    if (!base) base = hist[0];
+    var actualDays = (new Date(last.date) - new Date(base.date)) / 86400000;
+    // Si el historial no cubre al menos el 50% del período → no mostrar
+    if (per.days && actualDays < per.days * 0.5) return null;
+    // Mínimo 14 días de historial real para cualquier cálculo
+    if (actualDays < 14) return null;
+    var years = actualDays / 365.25;
+    return calcCAGR(base.price, last.price, years);
+  }
+
+  var rows = [];
+
+  // Fila cartera
+  var cartRow = { name: '<span style="color:var(--ac)">Mi Cartera</span>', vals: [] };
+  periods.forEach(function(per) { cartRow.vals.push(cagrForHist(cartPH, per)); });
+  rows.push(cartRow);
+
+  // Filas índices
+  Object.keys(BENCH_INDICES).forEach(function(sym) {
+    var idx = BENCH_INDICES[sym];
+    if (!idx.enabled) return;
+    var hist = PRICE_HISTORY[idx.key];
+    if (!hist || hist.length < 2) return;
+    var row = { name: '<span style="color:'+idx.color+'">'+idx.name+'</span>', vals: [] };
+    periods.forEach(function(per) { row.vals.push(cagrForHist(hist, per)); });
+    rows.push(row);
+  });
+
+  var hdrs = periods.map(function(p){ return '<th style="text-align:right">'+p.label+'</th>'; }).join('');
+  var trs  = rows.map(function(r){
+    var tds = r.vals.map(function(v){
+      if (v===null) return '<td class="mono mu" style="text-align:right">—</td>';
+      var col = v>=0 ? 'var(--ac)' : 'var(--red)';
+      return '<td class="mono" style="text-align:right;color:'+col+';font-weight:700">'+(v>=0?'+':'')+v.toFixed(1)+'%</td>';
+    }).join('');
+    return '<tr><td>'+r.name+'</td>'+tds+'</tr>';
+  }).join('');
+
+  el.innerHTML = '<div class="tw"><table style="width:100%"><thead><tr><th>Activo</th>'+hdrs+'</tr></thead><tbody>'+trs+'</tbody></table></div>';
+}
+
+// ════════════════════════════════════════════════════════════════
 // ════════════════════════════════════════════════════════════════
 //  NAVIGATION
 // ════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════
+//  X-RAY MORNINGSTAR — IMPORTADOR Y VISUALIZADOR
+// ════════════════════════════════════════════════════════════════
+
+function uploadXRay(input) {
+  var file = input.files[0]; if (!file) return;
+  var statusEl = document.getElementById('xray-upload-status');
+  var resultEl = document.getElementById('xray-result');
+  if (statusEl) statusEl.innerHTML = '<span style="color:var(--yel)">⏳ Procesando PDF…</span>';
+  if (resultEl) resultEl.style.display = 'none';
+
+  var fd = new FormData();
+  fd.append('pdf', file);
+  fd.append('token', AUTH_HASH_CLIENT);
+
+  fetch('xray.php', { method: 'POST', body: fd })
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      input.value = '';
+      if (d.ok) {
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--ac)">✅ X-Ray importado correctamente</span>';
+        // Update local cache
+        if (window._xrayData) window._xrayData = d.data;
+        else window._xrayData = d.data;
+        renderXRay(d.data);
+        if (resultEl) resultEl.style.display = '';
+      } else {
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">❌ ' + (d.msg||'Error desconocido') + '</span>';
+      }
+    })
+    .catch(function(e) {
+      input.value = '';
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">❌ Error de conexión: ' + e.message + '</span>';
+    });
+}
+
+function renderXRay(xr) {
+  var el = document.getElementById('xray-content');
+  if (!el) return;
+  if (!xr || !xr.fecha) {
+    el.innerHTML = '<div style="color:var(--mu);text-align:center;padding:32px">No hay datos X-Ray importados todavía.</div>';
+    return;
+  }
+
+  var fecha = xr.fecha ? (function(){var p=xr.fecha.split('-');return p[2]+'/'+p[1]+'/'+p[0];})() : '—';
+
+  // Barra compacta: solo fecha + botón actualizar (el panel grande queda oculto)
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:8px;padding:10px 14px;background:var(--s2);border:1px solid var(--bd);border-radius:10px">' +
+    '<div style="font-size:12px;color:var(--mu2)">📊 Informe Morningstar · <strong style="color:var(--text)">' + fecha + '</strong> · importado ' + xr.importado_en + '</div>' +
+    '<label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;background:var(--s);border:1px solid var(--bd);color:var(--mu2);border-radius:7px;padding:5px 12px;font-size:12px">' +
+      '🔄 Actualizar X-Ray <input type="file" accept=".pdf" style="display:none" onchange="uploadXRay(this)">' +
+    '</label>' +
+  '</div>';
+
+  // Ocultar el panel de instrucciones una vez que hay datos
+  var uploadPanel = document.getElementById('xray-upload-panel');
+  if (uploadPanel) uploadPanel.style.display = 'none';
+  var resultEl2 = document.getElementById('xray-result');
+  if (resultEl2) resultEl2.style.display = '';
+
+  // ── KPIs distribución activos ──────────────────────────────
+  html += '<div class="krow">';
+  var act = xr.distribucion_activos || {};
+  var actItems = [
+    {k:'acciones',    l:'📈 Acciones',     c:'var(--ac)'},
+    {k:'obligaciones',l:'📄 Obligaciones',  c:'var(--fondos)'},
+    {k:'efectivo',    l:'💶 Efectivo',      c:'var(--yel)'},
+    {k:'otro',        l:'🔷 Otro',          c:'var(--pur)'},
+  ];
+  actItems.forEach(function(a) {
+    var v = act[a.k] ? act[a.k].port : null;
+    html += '<div class="kpi" style="flex:1;min-width:120px">' +
+      '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin-bottom:6px">' + a.l + '</div>' +
+      '<div style="font-family:\'JetBrains Mono\',monospace;font-size:20px;font-weight:800;color:' + a.c + '">' +
+        (v !== null ? v.toFixed(1)+'%' : '—') +
+      '</div>' +
+    '</div>';
+  });
+  html += '</div>';
+
+  // ── Grid: Rentabilidades + Riesgo ─────────────────────────
+  html += '<div class="gdb" style="margin-bottom:20px">';
+
+  // Rentabilidades
+  html += '<div class="panel"><div class="ph"><span class="ph-t">Rentabilidad acumulada</span><span style="font-size:11px;color:var(--mu)">vs Mercado Monetario EUR</span></div><div class="pb">';
+  var rents = xr.rentabilidades || {};
+  var rentItems = [
+    {k:'3m',label:'3 meses'},{k:'6m',label:'6 meses'},{k:'ytd',label:'YTD'},
+    {k:'1y',label:'1 año'},{k:'3y',label:'3 años (anual.)'},{k:'5y',label:'5 años (anual.)'}
+  ];
+  html += '<table style="width:100%;border-collapse:collapse">' +
+    '<thead><tr><th style="text-align:left;font-size:10px;color:var(--mu);padding-bottom:8px">Período</th>' +
+    '<th style="text-align:right;font-size:10px;color:var(--mu)">Cartera</th>' +
+    '<th style="text-align:right;font-size:10px;color:var(--mu)">Ref.</th></tr></thead><tbody>';
+  rentItems.forEach(function(ri) {
+    var v = rents[ri.k];
+    if (!v) return;
+    var col = v.port >= 0 ? 'var(--ac)' : 'var(--red)';
+    html += '<tr style="border-top:1px solid var(--bd)">' +
+      '<td style="padding:6px 0;font-size:12px;color:var(--mu2)">' + ri.label + '</td>' +
+      '<td style="text-align:right;font-family:\'JetBrains Mono\',monospace;font-weight:700;color:' + col + '">' +
+        (v.port >= 0 ? '+' : '') + v.port.toFixed(2) + '%</td>' +
+      '<td style="text-align:right;font-family:\'JetBrains Mono\',monospace;color:var(--mu)">' +
+        (v.ref !== null ? v.ref.toFixed(2)+'%' : '—') + '</td>' +
+    '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+
+  // Riesgo
+  html += '<div class="panel"><div class="ph"><span class="ph-t">Estadísticas de riesgo</span></div><div class="pb">';
+  var rsk = xr.riesgo || {};
+  var riskItems = [
+    {k:'volatilidad',l:'Volatilidad'},
+    {k:'sharpe',l:'Ratio Sharpe'},
+    {k:'alfa',l:'Alfa'},
+    {k:'beta',l:'Beta'},
+    {k:'tracking_error',l:'Tracking Error'},
+    {k:'info_ratio',l:'Ratio de Información'},
+  ];
+  html += '<table style="width:100%;border-collapse:collapse">' +
+    '<thead><tr><th style="text-align:left;font-size:10px;color:var(--mu);padding-bottom:8px">Métrica</th>' +
+    '<th style="text-align:right;font-size:10px;color:var(--mu)">3 años</th>' +
+    '<th style="text-align:right;font-size:10px;color:var(--mu)">5 años</th></tr></thead><tbody>';
+  riskItems.forEach(function(ri) {
+    var v = rsk[ri.k];
+    if (!v) return;
+    html += '<tr style="border-top:1px solid var(--bd)">' +
+      '<td style="padding:6px 0;font-size:12px;color:var(--mu2)">' + ri.l + '</td>' +
+      '<td style="text-align:right;font-family:\'JetBrains Mono\',monospace;font-weight:700;color:var(--text)">' +
+        (v['3y'] !== null ? v['3y'] : '—') + '</td>' +
+      '<td style="text-align:right;font-family:\'JetBrains Mono\',monospace;color:var(--mu)">' +
+        (v['5y'] !== null ? v['5y'] : '—') + '</td>' +
+    '</tr>';
+  });
+  html += '</tbody></table></div></div></div>';
+
+  // ── Grid: Regiones + Sectores ────────────────────────────
+  html += '<div class="gdb" style="margin-bottom:20px">';
+
+  // Regiones con subregiones (opción B)
+  html += '<div class="panel"><div class="ph"><span class="ph-t">Exposición geográfica</span></div><div class="pb">';
+  var regs = xr.regiones || [];
+  var regColors = { europa: '#60a5fa', america: '#00e5b0', asia: '#f97316' };
+  var bigRegKeys = ['europa','america','asia'];
+  if (regs.length > 0) {
+    bigRegKeys.forEach(function(rkey) {
+      var big = regs.filter(function(r){ return r.key === rkey; })[0];
+      if (!big || !big.pct) return;
+      var col = regColors[rkey] || 'var(--fondos)';
+      var w = Math.min(100, big.pct);
+      html += '<div style="margin-top:14px;margin-bottom:4px">' +
+        '<div style="display:flex;align-items:center;gap:10px">' +
+          '<div style="width:120px;font-size:12px;font-weight:700;color:' + col + '">' + big.nombre + '</div>' +
+          '<div style="flex:1;height:8px;background:var(--bd);border-radius:4px">' +
+            '<div style="height:8px;border-radius:4px;background:' + col + ';width:' + w + '%"></div>' +
+          '</div>' +
+          '<div style="width:45px;text-align:right;font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:700;color:' + col + '">' + big.pct.toFixed(1) + '%</div>' +
+        '</div>' +
+      '</div>';
+      regs.filter(function(r){ return r.parent === rkey && r.pct > 0; }).forEach(function(sub) {
+        var ws = Math.min(100, big.pct > 0 ? (sub.pct / big.pct) * 100 : 0);
+        html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:3px;padding-left:12px">' +
+          '<div style="width:108px;font-size:11px;color:var(--mu2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + sub.nombre + '</div>' +
+          '<div style="flex:1;height:5px;background:var(--bd);border-radius:3px">' +
+            '<div style="height:5px;border-radius:3px;background:' + col + ';opacity:0.45;width:' + ws.toFixed(1) + '%"></div>' +
+          '</div>' +
+          '<div style="width:45px;text-align:right;font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--mu)">' + sub.pct.toFixed(1) + '%</div>' +
+        '</div>';
+      });
+    });
+  } else {
+    // Fallback: top 10 países
+    (xr.exposicion_pais||[]).slice(0,10).forEach(function(p) {
+      var w = Math.min(100, p.pct || 0);
+      html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">' +
+        '<div style="width:120px;font-size:12px;color:var(--mu2)">' + p.pais + '</div>' +
+        '<div style="flex:1;height:8px;background:var(--bd);border-radius:4px">' +
+          '<div style="height:8px;border-radius:4px;background:var(--fondos);width:' + w + '%"></div>' +
+        '</div>' +
+        '<div style="width:45px;text-align:right;font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:700;color:var(--text)">' + p.pct.toFixed(1) + '%</div>' +
+      '</div>';
+    });
+  }
+  html += '</div></div>';
+
+  // Sectores
+  html += '<div class="panel"><div class="ph"><span class="ph-t">Sectores de renta variable</span></div><div class="pb">';
+  var sects = xr.sectores || {};
+  var sectOrder = ['tecnologia','financieros','industria','salud','consumo_ciclico',
+                   'materiales','comunicacion','consumo_defensivo','energia','inmobiliario','servicios_publicos'];
+  var sectColors = {'tecnologia':'#60a5fa','financieros':'#34d399','industria':'#f97316',
+                    'salud':'#f43f5e','consumo_ciclico':'#a78bfa','materiales':'#f5c842',
+                    'comunicacion':'#00e5b0','consumo_defensivo':'#fb923c',
+                    'energia':'#94a3b8','inmobiliario':'#e879f9','servicios_publicos':'#6ee7b7'};
+  var sectSorted = sectOrder.filter(function(k){ return sects[k] && sects[k].pct; });
+  sectSorted.sort(function(a,b){ return (sects[b].pct||0) - (sects[a].pct||0); });
+  sectSorted.forEach(function(k) {
+    var s = sects[k];
+    var col = sectColors[k] || 'var(--mu2)';
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">' +
+      '<div style="width:130px;font-size:11px;color:var(--mu2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + s.nombre + '</div>' +
+      '<div style="flex:1;height:8px;background:var(--bd);border-radius:4px">' +
+        '<div style="height:8px;border-radius:4px;background:'+col+';width:' + Math.min(100,s.pct) + '%"></div>' +
+      '</div>' +
+      '<div style="width:45px;text-align:right;font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:700;color:var(--text)">' + s.pct.toFixed(1) + '%</div>' +
+    '</div>';
+  });
+  html += '</div></div></div>';
+
+  // ── Posiciones con rentabilidad Morningstar ───────────────
+  if (xr.posiciones && xr.posiciones.length) {
+    html += '<div class="panel" style="margin-bottom:20px"><div class="ph"><span class="ph-t">Fondos — Rentabilidad Morningstar</span></div><div class="pb"><div class="tw">' +
+      '<table style="width:100%;border-collapse:collapse"><thead><tr>' +
+      '<th style="text-align:left">Fondo</th>' +
+      '<th style="text-align:right">Peso</th>' +
+      '<th style="text-align:right">1 año</th>' +
+      '<th style="text-align:right">3 años</th>' +
+      '<th style="text-align:right">5 años</th>' +
+      '<th style="text-align:right">Gastos</th>' +
+      '</tr></thead><tbody>';
+    xr.posiciones.forEach(function(p) {
+      function rentCell(v) {
+        if (v === null || v === undefined) return '<td class="mono" style="text-align:right;color:var(--mu)">—</td>';
+        var col = v >= 0 ? 'var(--ac)' : 'var(--red)';
+        return '<td class="mono" style="text-align:right;color:'+col+';font-weight:700">'+(v>=0?'+':'')+v.toFixed(2)+'%</td>';
+      }
+      html += '<tr>' +
+        '<td style="font-size:12px;font-weight:600;color:var(--text)">' + p.nombre + '</td>' +
+        '<td class="mono" style="text-align:right;font-weight:700">' + (p.peso||0).toFixed(2) + '%</td>' +
+        rentCell(p.rentab_1y) + rentCell(p.rentab_3y) + rentCell(p.rentab_5y) +
+        '<td class="mono" style="text-align:right;color:var(--mu)">' + (p.gastos !== null ? p.gastos+'%' : '—') + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div></div></div>';
+  }
+
+  // ── Top 10 posiciones subyacentes ───────────────────────────
+  if (xr.top10 && xr.top10.length) {
+    html += '<div class="panel" style="margin-bottom:20px"><div class="ph"><span class="ph-t">Top 10 posiciones subyacentes</span><span style="font-size:11px;color:var(--mu)">exposición real a través de los fondos</span></div><div class="pb"><div class="tw"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left">Posición</th><th style="text-align:left">Tipo</th><th style="text-align:right">% Cartera</th></tr></thead><tbody>';
+    xr.top10.forEach(function(t, i) {
+      var tipoCol = t.tipo === 'Acción' ? 'var(--acciones)' : t.tipo === 'Bono' ? 'var(--fondos)' : 'var(--mu2)';
+      var barW = Math.min(100, (t.pct / xr.top10[0].pct) * 100);
+      html += '<tr style="border-top:1px solid var(--bd)">' +
+        '<td style="padding:7px 0;font-size:12px">' +
+          '<span style="display:inline-block;width:20px;font-size:10px;color:var(--mu);font-family:monospace">' + (i+1) + '.</span>' +
+          '<span style="font-weight:600;color:var(--text)">' + t.nombre + '</span>' +
+          '<div style="margin-top:3px;padding-left:20px;height:3px;background:var(--bd);border-radius:2px;width:200px">' +
+            '<div style="height:3px;border-radius:2px;background:' + tipoCol + ';width:' + barW.toFixed(1) + '%"></div>' +
+          '</div>' +
+        '</td>' +
+        '<td style="font-size:11px;color:' + tipoCol + ';padding:7px 8px">' + t.tipo + '</td>' +
+        '<td style="text-align:right;font-family:\'JetBrains Mono\',monospace;font-weight:700;font-size:12px;color:var(--text)">' + t.pct.toFixed(2) + '%</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div></div></div>';
+  }
+
+  // ── Estilo de inversión + TER ────────────────────────────────
+  html += '<div class="gdb" style="margin-bottom:20px">';
+
+  // Matriz estilo 3×3
+  if (xr.estilo_matriz) {
+    var em = xr.estilo_matriz;
+    var maxVal = 0;
+    em.valores.forEach(function(row){ row.forEach(function(v){ if(v>maxVal) maxVal=v; }); });
+    html += '<div class="panel"><div class="ph"><span class="ph-t">Estilo de inversión</span></div><div class="pb">';
+    html += '<div style="display:grid;grid-template-columns:auto repeat(3,1fr);gap:4px;max-width:320px">';
+    // Header cols
+    html += '<div></div>';
+    em.labels_col.forEach(function(l){
+      html += '<div style="text-align:center;font-size:10px;color:var(--mu);font-weight:700;padding-bottom:4px">' + l + '</div>';
+    });
+    // Rows
+    em.labels_fila.forEach(function(fila, ri) {
+      html += '<div style="font-size:10px;color:var(--mu);display:flex;align-items:center;padding-right:6px">' + fila + '</div>';
+      em.valores[ri].forEach(function(v, ci) {
+        var intensity = maxVal > 0 ? v / maxVal : 0;
+        var bg = 'rgba(0,229,176,' + (0.08 + intensity * 0.6).toFixed(2) + ')';
+        var border = ci === 1 && ri === 0 ? '2px solid var(--ac)' : '1px solid var(--bd)'; // highlight dominant
+        html += '<div style="border:' + border + ';border-radius:6px;padding:10px 4px;text-align:center;background:' + bg + '">' +
+          '<div style="font-family:\'JetBrains Mono\',monospace;font-size:14px;font-weight:800;color:var(--text)">' + v + '</div>' +
+          '<div style="font-size:9px;color:var(--mu)">%</div>' +
+        '</div>';
+      });
+    });
+    html += '</div>';
+    // Style summary
+    var dominated = '';
+    var maxV = 0, maxR = 0, maxC = 0;
+    em.valores.forEach(function(row,ri){ row.forEach(function(v,ci){ if(v>maxV){maxV=v;maxR=ri;maxC=ci;} }); });
+    dominated = em.labels_fila[maxR] + ' ' + em.labels_col[maxC];
+    html += '<div style="margin-top:12px;font-size:12px;color:var(--mu2)">Celda dominante: <strong style="color:var(--ac)">' + dominated + ' (' + maxV + '%)</strong></div>';
+    // Sesgo value/growth
+    var colTotals = [0,0,0];
+    em.valores.forEach(function(row){ row.forEach(function(v,ci){ colTotals[ci]+=v; }); });
+    var sesgo = colTotals[0] > colTotals[2] ? 'Valor' : colTotals[2] > colTotals[0] ? 'Crecimiento' : 'Mixto';
+    html += '<div style="font-size:11px;color:var(--mu);margin-top:4px">Sesgo: <span style="color:var(--text)">' + sesgo + '</span> · Valor <span style="font-family:monospace">' + colTotals[0] + '%</span> · Mixto <span style="font-family:monospace">' + colTotals[1] + '%</span> · Crecimiento <span style="font-family:monospace">' + colTotals[2] + '%</span></div>';
+    html += '</div></div>';
+  }
+
+  // TER ponderado
+  var ter = 0, pesoCheck = 0;
+  (xr.posiciones||[]).forEach(function(p) {
+    if (p.gastos !== null && p.peso !== null) {
+      ter += p.gastos * p.peso / 100;
+      pesoCheck += p.peso;
+    }
+  });
+  if (ter > 0) {
+    var terCol = ter < 0.3 ? 'var(--ac)' : ter < 0.7 ? 'var(--yel)' : 'var(--red)';
+    var terLabel = ter < 0.3 ? 'Coste muy bajo ✓' : ter < 0.7 ? 'Coste moderado' : 'Coste elevado';
+    html += '<div class="panel"><div class="ph"><span class="ph-t">Coste total ponderado (TER)</span></div><div class="pb">' +
+      '<div style="font-family:\'JetBrains Mono\',monospace;font-size:36px;font-weight:800;color:' + terCol + '">' + ter.toFixed(3) + '%</div>' +
+      '<div style="font-size:12px;color:var(--mu2);margin-top:6px">anual · sobre valor de la cartera</div>' +
+      '<div style="margin-top:8px;font-size:12px;color:' + terCol + ';font-weight:700">' + terLabel + '</div>' +
+      '<div style="margin-top:16px">';
+    (xr.posiciones||[]).forEach(function(p) {
+      if (p.gastos === null) return;
+      var contrib = p.gastos * (p.peso||0) / 100;
+      var barW = ter > 0 ? Math.min(100, contrib / ter * 100) : 0;
+      var gCol = p.gastos < 0.2 ? 'var(--ac)' : p.gastos < 0.5 ? 'var(--yel)' : 'var(--red)';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+        '<div style="flex:1;font-size:11px;color:var(--mu2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + p.nombre.split(' ').slice(0,3).join(' ') + '</div>' +
+        '<div style="width:80px;height:5px;background:var(--bd);border-radius:3px">' +
+          '<div style="height:5px;border-radius:3px;background:' + gCol + ';width:' + barW.toFixed(1) + '%"></div>' +
+        '</div>' +
+        '<div style="width:38px;text-align:right;font-family:\'JetBrains Mono\',monospace;font-size:11px;color:' + gCol + '">' + p.gastos.toFixed(2) + '%</div>' +
+      '</div>';
+    });
+    html += '</div></div></div>';
+  }
+
+  html += '</div>'; // close gdb
+
+  el.innerHTML = html;
+}
+
+function xrayOnEnter() {
+  // Load from cached data.json xray field
+  var xr = window._xrayData;
+  renderXRay(xr);
+}
 // ── Secciones del menú principal ─────────────────────────────────
 var currentSection = 'cartera';
 
@@ -983,8 +1718,15 @@ function ST(broker, name, btn) {
     }
       drawPie('c-pie-f',FPOS.map(function(p){return p.ticker;}),FPOS.map(function(p){return p.currentValue;}),COLORS);
     }
-    if (broker==='fondos'&&name==='analisis')
+    if (broker==='fondos'&&name==='analisis') {
       drawBars('c-gl-f',FPOS.map(function(p){return p.ticker;}),FPOS.map(function(p){return p.gainLoss;}),COLORS,FPOS.map(function(p){return p.nombre;}));
+    }
+    if (broker==='fondos'&&name==='benchmark') {
+      renderBenchmarkPanel();
+    }
+    if (broker==='fondos'&&name==='xray') {
+      xrayOnEnter();
+    }
     if (broker==='acciones'&&name==='dashboard') {
       drawBarsW('c-gl-a-dash', APOS.map(function(p){return p.ticker;}), APOS.map(function(p){return p.gainLoss;}), ACOLORS, 0.62, APOS.map(function(p){return p.nombre||p.ticker;}));
       drawPie('c-pie-a',APOS.map(function(p){return p.ticker;}),APOS.map(function(p){return p.currentValue;}),ACOLORS);
@@ -1749,7 +2491,12 @@ function savePriceSnapshots() {
   // S&P 500 snapshot (si se obtuvo en este refresh)
   if (window._sp500Snapshot) {
     prices.push(window._sp500Snapshot);
-    window._sp500Snapshot = null; // consumir — no persistir en el siguiente save
+    window._sp500Snapshot = null;
+  }
+  // Snapshots de otros índices de benchmark
+  if (window._benchSnapshots && window._benchSnapshots.length) {
+    prices = prices.concat(window._benchSnapshots);
+    window._benchSnapshots = [];
   }
   if (!prices.length) return;
   var fxKeys = Object.keys(FX_TABLE).sort();
@@ -3552,6 +4299,17 @@ function init(data) {
   APOS_RAW  = data.acciones.posiciones || [];
   AOPS_RAW  = data.acciones.operaciones|| [];
   BENCH             = data.fondos.benchmark        || [];
+  // Cargar historial de precios (fondos, acciones, índices benchmark)
+  PRICE_HISTORY = data.price_history || {};
+  // Cargar datos X-Ray si existen
+  if (data.xray) window._xrayData = data.xray;
+
+  // Cargar configuración de benchmark guardada
+  if (data.bench_config) {
+    Object.keys(data.bench_config).forEach(function(sym) {
+      if (BENCH_INDICES[sym]) BENCH_INDICES[sym].enabled = data.bench_config[sym];
+    });
+  }
   REEMBOLSOS_BROKER = data.fondos.reembolsos_broker|| [];
   window._FONDOS_IR_TOTAL = data.fondos.invertido_real_total || 0;
   window._ACCIONES_REALIZED = data.acciones.total_realized || 0;
@@ -3592,16 +4350,23 @@ function init(data) {
     var _mF = (FPOS_RAW||[]).filter(function(p){return !p.yahoo_ticker;}).length;
     var _mA = (APOS_RAW||[]).filter(function(p){return !p.yahoo_ticker;}).length;
     if (_mF + _mA > 0) {
-      autoFetchMissingTickers(function(){ refreshPrices(); });
+      autoFetchMissingTickers(function(){ _checkAutoRefresh(); });
       return;
     }
+    _checkAutoRefresh();
   }, 600);
+}
 
-  // Auto-refresh si los datos no son de hoy
-  setTimeout(function() {
+function _checkAutoRefresh() {
+    // Solo ejecutar si el usuario está autenticado (login-screen oculto)
+    var loginScreen = document.getElementById('login-screen');
+    if (loginScreen && loginScreen.style.display !== 'none') return;
+    // Evitar doble ejecución
+    if (window._autoRefreshDone) return;
+    window._autoRefreshDone = true;
+    // Reset tras 10s para permitir refresh manual posterior
+    setTimeout(function(){ window._autoRefreshDone = false; }, 10000);
     var today = new Date().toISOString().substring(0, 10);
-    // Buscar la fecha más reciente en los NAV de fondos (campo precio_fecha o inferir de data.json)
-    // Usamos la fecha del timestamp guardado en data.json como referencia
     var lastDate = null;
     // fecha_precio en data.json tiene formato DD/MM/YYYY - convertir a YYYY-MM-DD
     FPOS_RAW.forEach(function(p) {
@@ -3613,6 +4378,10 @@ function init(data) {
         }
       }
     });
+    // También comprobar acciones
+    APOS_RAW.forEach(function(p) {
+      if (p._priceDate && p._priceDate > (lastDate||'')) lastDate = p._priceDate.substring(0,10);
+    });
     if (!lastDate) {
       var fxDates = Object.keys(FX_TABLE).sort();
       lastDate = fxDates.length ? fxDates[fxDates.length-1] : null;
@@ -3621,20 +4390,44 @@ function init(data) {
     var now = new Date();
     var dow = now.getDay();
     var isWeekday = dow >= 1 && dow <= 5;
-    // Solo refrescar si es laborable Y el NAV ya fue publicado (>= 18:30 CET)
+
+    // Comprobar si hay índices de benchmark sin datos de hoy
+    var sp500hist = PRICE_HISTORY['SP500'] || [];
+    var lastSP500 = sp500hist.length ? sp500hist[sp500hist.length-1].date : null;
+    var benchNeedsRefresh = !lastSP500 || lastSP500 < today;
+    if (!benchNeedsRefresh) {
+      Object.keys(BENCH_INDICES).forEach(function(sym) {
+        var idx = BENCH_INDICES[sym];
+        if (!idx.enabled) return;
+        var hist = PRICE_HISTORY[idx.key] || [];
+        var last = hist.length ? hist[hist.length-1].date : null;
+        if (!last || last < today) benchNeedsRefresh = true;
+      });
+    }
+
+    // Calcular hora CET
     var utcHour = now.getUTCHours() + now.getUTCMinutes() / 60;
     var jan = new Date(now.getFullYear(), 0, 1);
     var jul = new Date(now.getFullYear(), 6, 1);
     var isDST = now.getTimezoneOffset() < Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
     var cetHour = utcHour + (isDST ? 2 : 1);
     var navPublished = cetHour >= 18.5;
+
     if (needsRefresh && isWeekday && navPublished) {
-      console.log('Auto-refresh: datos de ' + (lastDate||'?') + ', hora CET ' + cetHour.toFixed(2));
+      console.log('[Auto-refresh] Datos de ' + (lastDate||'?') + ', CET ' + cetHour.toFixed(1));
       refreshPrices();
     } else if (needsRefresh && isWeekday) {
-      console.log('Auto-refresh pendiente, NAV aun no publicado (CET ' + cetHour.toFixed(2) + ' < 18:30)');
+      console.log('[Auto-refresh] NAV aún no publicado (CET ' + cetHour.toFixed(1) + ' < 18:30)');
+      if (benchNeedsRefresh) {
+        console.log('[Auto-refresh] Benchmark desactualizado — actualizando índices');
+        refreshPrices();
+      }
+    } else if (!needsRefresh && benchNeedsRefresh && isWeekday) {
+      console.log('[Auto-refresh] Fondos OK, benchmark desactualizado — actualizando');
+      refreshPrices();
+    } else {
+      console.log('[Auto-refresh] Todo al día (' + today + ')');
     }
-  }, 500);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -3642,11 +4435,46 @@ function init(data) {
 // ════════════════════════════════════════════════════════════════
 var _refreshSeq = 0;  // secuencia global para cancelar refreshes huérfanos
 
+function _showRefreshModal() {
+  var m = document.getElementById('_refresh-modal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = '_refresh-modal';
+    m.style.cssText = [
+      'position:fixed;inset:0;z-index:99999',
+      'display:flex;flex-direction:column;align-items:center;justify-content:center',
+      'background:rgba(7,13,22,0.82);backdrop-filter:blur(4px)',
+      '-webkit-backdrop-filter:blur(4px)',
+    ].join(';');
+    m.innerHTML = [
+      '<div style="background:#0d1929;border:1px solid #1e3a5a;border-radius:16px;',
+      'padding:36px 48px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)">',
+      '<div style="font-size:32px;margin-bottom:16px;animation:_spin 1.2s linear infinite">⟳</div>',
+      '<div style="font-size:15px;font-weight:700;color:#dde6f0;margin-bottom:8px">Actualizando precios</div>',
+      '<div style="font-size:12px;color:#4a6785">Obteniendo datos de Yahoo Finance…</div>',
+      '</div>',
+      '<style>@keyframes _spin{to{transform:rotate(360deg)}}</style>',
+    ].join('');
+    document.body.appendChild(m);
+  }
+  m.style.display = 'flex';
+}
+
+function _hideRefreshModal() {
+  var m = document.getElementById('_refresh-modal');
+  if (m) {
+    m.style.opacity = '0';
+    m.style.transition = 'opacity .3s';
+    setTimeout(function(){ m.style.display = 'none'; m.style.opacity = '1'; m.style.transition = ''; }, 300);
+  }
+}
+
 function refreshPrices() {
   var btn = document.getElementById('btn-refresh');
   btn.innerHTML = '⟳ <span style="font-size:10px;opacity:.8">actualizando…</span>';
   btn.style.color = 'var(--yel)';
   btn.disabled = true;
+  _showRefreshModal();
 
   var PROXY = 'precio.php?s=';
   var mySeq = ++_refreshSeq;  // capturar secuencia actual en closure
@@ -3727,6 +4555,7 @@ function refreshPrices() {
     btn.style.color = 'var(--mu2)';
     btn.disabled = false;
     clearTimeout(_safetyTimer);
+    _hideRefreshModal();
     savePriceSnapshots();
   }
 
@@ -3735,6 +4564,7 @@ function refreshPrices() {
     if (mySeq !== _refreshSeq) return;
     console.warn('[refresh] Timeout de seguridad — desbloqueando botón');
     btn.innerHTML = '⟳ Actualizar'; btn.style.color = 'var(--mu2)'; btn.disabled = false;
+    _hideRefreshModal();
   }, 30000);
 
   // Wrapper de tryFinish que cancela el timer de seguridad al completar
@@ -3752,7 +4582,7 @@ function refreshPrices() {
   // Fetch precios individuales via precio.php
   allPos.forEach(function(pos) {
     var sym = YAHOO_GLOBAL[pos.isin];
-    fetchWithTimeout(PROXY + encodeURIComponent(sym), 15000)
+    fetchWithTimeout(PROXY + encodeURIComponent(sym), 20000)
       .then(function(r){ return r.json(); })
       .then(function(d) {
         if (d.price) {
@@ -3770,13 +4600,17 @@ function refreshPrices() {
         tryFinish();
       })
       .catch(function(e) {
-        console.warn('[refresh] Error fetching', sym, e.message || e);
+        if (e && e.name === 'AbortError') {
+          console.warn('[refresh] Timeout (>20s) fetching', sym, '— continuando sin precio actualizado');
+        } else {
+          console.warn('[refresh] Error fetching', sym, e.message || e);
+        }
         tryFinish();
       });
   });
 
   // FX via precio.php (server-side, evita CORS y timeouts del navegador)
-  fetchWithTimeout(PROXY + encodeURIComponent('EURUSD=X'), 12000)
+  fetchWithTimeout(PROXY + encodeURIComponent('EURUSD=X'), 15000)
     .then(function(r){ return r.json(); })
     .then(function(d) {
       if (d.price && d.source === 'yahoo') {
@@ -3787,8 +4621,20 @@ function refreshPrices() {
     })
     .catch(function() { tryFinish(); });
 
+  // ── Fetch índices de benchmark ──────────────────────────────────
+  // Función helper: guardar snapshot en PRICE_HISTORY por key
+  function _saveBenchSnapshot(key, price, date) {
+    if (!PRICE_HISTORY[key]) PRICE_HISTORY[key] = [];
+    var arr = PRICE_HISTORY[key];
+    var last = arr[arr.length - 1];
+    if (!last || last.date !== date) {
+      arr.push({ date: date, price: parseFloat(price) });
+      if (arr.length > 400) arr.splice(0, arr.length - 400);
+    }
+  }
+
   // S&P 500 benchmark via precio.php
-  fetchWithTimeout(PROXY + encodeURIComponent('^GSPC'), 12000)
+  fetchWithTimeout(PROXY + encodeURIComponent('^GSPC'), 15000)
     .then(function(r){ return r.json(); })
     .then(function(d) {
       if (d.price) {
@@ -3810,6 +4656,37 @@ function refreshPrices() {
       console.warn('[refresh] Error fetching ^GSPC', e.message || e);
       tryFinish();
     });
+
+  // Fetch otros índices de benchmark habilitados (no cuentan en pending — son opcionales)
+  Object.keys(BENCH_INDICES).forEach(function(sym) {
+    var idx = BENCH_INDICES[sym];
+    if (sym === '^GSPC') return;  // ya fetcheado arriba
+    if (!idx.enabled) return;    // solo si está activo
+    fetchWithTimeout(PROXY + encodeURIComponent(sym), 18000)
+      .then(function(r){ return r.json(); })
+      .then(function(d) {
+        if (d.price && d.date) {
+          _saveBenchSnapshot(idx.key, d.price, d.date.substring(0,10));
+          // Guardar historial completo de Yahoo si disponible
+          if (d.hist) {
+            window['_benchHist_'+idx.key] = d.hist;
+          }
+        }
+        // Persistir en servidor
+        var snap = { isin: idx.key, price: parseFloat(d.price||0), date: (d.date||'').substring(0,10) };
+        if (snap.price > 0 && snap.date) {
+          if (!window._benchSnapshots) window._benchSnapshots = [];
+          window._benchSnapshots.push(snap);
+        }
+      })
+      .catch(function(e){
+        if (e && e.name === 'AbortError') {
+          console.warn('[bench] Timeout fetching '+sym+' (>10s) — reintentará en el próximo refresh');
+        } else {
+          console.warn('[bench] Error fetching '+sym, e.message||e);
+        }
+      });
+  });
 }
 
 

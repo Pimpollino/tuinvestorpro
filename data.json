@@ -23,5 +23,9 @@
     "updated_at": ""
   },
   "fire": {},
-  "price_history": {}
+  "price_history": {},
+  "bench_config": {
+    "^GSPC": true
+  },
+  "xray": null
 }

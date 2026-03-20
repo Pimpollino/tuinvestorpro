@@ -62,11 +62,31 @@ if ($action === 'search') {
     exit;
 }
 
+function findCC($ts,$cs,$tgt){
+  $b=null; $bd=PHP_INT_MAX;
+  for($i=0;$i<count($cs);$i++){
+    if($cs[$i]===null||$ts[$i]===null) continue;
+    if($ts[$i]>$tgt) continue;
+    $d=abs($ts[$i]-$tgt);
+    if($d<$bd){ $bd=$d; $b=$cs[$i]; }
+  }
+  return $b;
+}
+
 $symbol = $_GET['s'] ?? '';
 if (!$symbol) { echo json_encode(['error' => 'no symbol']); exit; }
 
 // Whitelist dinamica desde data.json — cualquier yahoo_ticker registrado queda autorizado
-$symbols = ['EURUSD=X' => null, '^GSPC' => null];  // S&P 500 para benchmark
+// Indices de benchmark — isin=null: Yahoo directo (sin fallback FT)
+$symbols = [
+    'EURUSD=X'    => null,   // Tipo de cambio EUR/USD
+    '^GSPC'       => null,   // S&P 500
+    'URTH'        => null,   // MSCI World ETF (iShares)
+    '^IBEX'       => null,   // IBEX 35
+    '^STOXX50E'   => null,   // Euro Stoxx 50
+    'GC=F'        => null,   // Oro (futuros)
+    '^NDX'        => null,   // Nasdaq 100
+];
 $data_file = __DIR__ . '/data.json';
 if (file_exists($data_file)) {
     $djson = json_decode(file_get_contents($data_file), true);
@@ -181,11 +201,11 @@ if ($isin) {
     }
 }
 
-// Fallback: Yahoo Finance
+// Yahoo Finance chart range=2y (precio + historial + prev_close)
 $yahoo_url = 'https://query1.finance.yahoo.com/v8/finance/chart/' . urlencode($symbol) . '?interval=1d&range=2y';
 $ctx2 = stream_context_create(['http' => [
     'header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\r\n",
-    'timeout' => 10,
+    'timeout' => 12,
     'ignore_errors' => true,
 ]]);
 
@@ -218,16 +238,7 @@ for ($i = count($closes)-1; $i >= 0; $i--) {
 
 // Historical prices: find closest close to 1w, 1m, 3m, 1y ago
 // findCC: busca el close más cercano anterior a $tgt en arrays de Yahoo
-function findCC($ts,$cs,$tgt){
-  $b=null; $bd=PHP_INT_MAX;
-  for($i=0;$i<count($cs);$i++){
-    if($cs[$i]===null||$ts[$i]===null) continue;
-    if($ts[$i]>$tgt) continue;
-    $d=abs($ts[$i]-$tgt);
-    if($d<$bd){ $bd=$d; $b=$cs[$i]; }
-  }
-  return $b;
-}
+// findCC defined above
 
 function findClosestClose($timestamps, $closes, $targetTs) {
     $best = null; $bestDiff = PHP_INT_MAX;

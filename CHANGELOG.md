@@ -50,3 +50,65 @@
 - Vista inicial: **Resumen global** (antes era Fondos Dashboard)
 - FIRE promovido a sección Planificación (antes estaba en Fondos)
 - Importar datos movido a Gestión (antes estaba en Resumen global)
+
+## v1.2.0 — Benchmark mejorado
+
+### Nuevos índices de referencia
+- Añadidos a `precio.php`: MSCI World (`URTH`), IBEX 35 (`^IBEX`), Euro Stoxx 50 (`^STOXX50E`), Oro (`GC=F`), Nasdaq 100 (`^NDX`)
+- El usuario activa/desactiva cada índice con checkboxes
+
+### Nueva pestaña: Análisis → 📊 Benchmark
+- **Selector de índices**: activa los que quieras comparar, se persisten los datos en `price_history`
+- **Gráfico comparativo**: % acumulado desde primera fecha disponible de la cartera vs índices seleccionados. Tooltip hover con fecha y valor de cada serie
+- **Tabla CAGR**: rentabilidad anualizada por períodos (1A, 3A, 5A, Total) para la cartera y cada índice activo
+- Los datos de índices se actualizan automáticamente en cada refresh de precios
+
+### Técnico
+- `BENCH_INDICES`: configuración global con key, color y estado enabled por índice
+- `_saveBenchSnapshot()`: helper para guardar snapshot en `PRICE_HISTORY`
+- `buildCarteSeries()`: construye la serie de rentabilidad de la cartera propia ponderando snapshots de posiciones
+- `renderBenchmarkPanel()`, `drawBenchCompare()`, `renderCAGRTable()`, `calcCAGR()`: funciones de rendering
+
+## v1.3.0 — X-Ray Morningstar
+
+### Nueva pestaña: Análisis → 🔬 X-Ray
+- **Importador PDF**: sube el X-Ray que genera MyInvestor con Morningstar y la app extrae todos los datos automáticamente
+- **Distribución de activos**: % en acciones, obligaciones, efectivo y otro
+- **Rentabilidad acumulada**: 3M, 6M, YTD, 1A, 3A, 5A vs benchmark (Mercado Monetario EUR)
+- **Estadísticas de riesgo**: Volatilidad, Sharpe, Alfa, Beta, Tracking Error, R²
+- **Exposición geográfica**: top 10 países con barras visuales
+- **Sectores de renta variable**: todos los sectores con barras de color
+- **Tabla de fondos**: rentabilidades oficiales Morningstar 1A/3A/5A y gastos corrientes por fondo
+
+### Técnico
+- `xray.php`: parser PHP que usa `pdftotext` para extraer texto y regex para estructurar los datos
+- `uploadXRay()`, `renderXRay()`, `xrayOnEnter()`: funciones JS de upload y rendering
+- Datos persistidos en `data.json` bajo clave `xray`
+
+## v1.4.0 — X-Ray Morningstar (mejoras)
+
+### Nuevas secciones en X-Ray
+- **Top 10 posiciones subyacentes**: acciones y bonos reales que posees a través de los fondos, con tipo y % de cartera
+- **Estilo de inversión**: matriz 3×3 (Grande/Mediana/Pequeña × Valor/Mixto/Crecimiento) con colores de intensidad, celda dominante y sesgo automático
+- **Coste total ponderado (TER)**: coste real anual de la cartera ponderando gastos de cada fondo por su peso, con semáforo y desglose
+
+### Correcciones X-Ray
+- Parser PHP nativo sin shell_exec (compatible con hostings compartidos)
+- Números europeos (1.234,56) parseados correctamente con patrón `\d{1,6},\d{2}`
+- Rentabilidades: búsqueda en sección correcta del PDF
+- Riesgo: evita la etiqueta del gráfico de dispersión
+- Países: patrón sin `\b` (word boundary) para texto sin espacios
+- Posiciones: ancla `Posiciones de Cartera` en lugar de `AXA` (que aparece en otra sección)
+- Estilo matriz: algoritmo iterativo preferible a 2 dígitos → `[16,26,20,6,8,9,5,6,5]` correcto
+- Acentos restaurados en nombres de países y sectores
+
+### UX
+- Panel de importación se oculta automáticamente cuando ya hay datos — queda barra compacta con fecha y botón Actualizar
+- Modal de carga al actualizar precios (auto-refresh y manual)
+- Auto-refresh solo se ejecuta tras autenticación (no antes del login)
+- `_checkAutoRefresh` como función global nombrada (evitaba `ReferenceError`)
+- Debounce guard anti-doble ejecución
+
+### Benchmark
+- Configuración de índices activos persiste en `data.json` (`bench_config`)
+- Nuevos índices: MSCI World, IBEX 35, Euro Stoxx 50, Oro, Nasdaq 100

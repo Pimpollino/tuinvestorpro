@@ -31,6 +31,20 @@ if ($token !== $stored_hash) respond(false, 'No autorizado');
 $action = $input['action'] ?? '';
 
 // ── ADD OPERATION ──────────────────────────────────────────────
+if ($action === 'save_bench_config') {
+    $config = $input['config'] ?? [];
+    // Validar: solo claves de índices conocidos
+    $allowed = ['^GSPC', 'URTH', '^IBEX', '^STOXX50E', 'GC=F', '^NDX'];
+    $clean = [];
+    foreach ($allowed as $sym) {
+        if (isset($config[$sym])) $clean[$sym] = (bool)$config[$sym];
+    }
+    $data['bench_config'] = $clean;
+    file_put_contents(DATA_FILE, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 if ($action === 'save_fire') {
     $params = $input['params'] ?? [];
     $data['fire'] = [
@@ -556,6 +570,8 @@ if ($action === 'reset_data') {
         'yahoo_fx_ticker' => 'EURUSD=X',
         'rebalanceo'      => ['universe' => [], 'updated_at' => ''],
         'fire'            => (object)[],
+        'bench_config'    => ['^GSPC' => true],
+        'xray'            => null,
         'price_history'   => [],
     ];
 

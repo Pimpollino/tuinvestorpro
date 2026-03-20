@@ -250,6 +250,9 @@ th.sort-desc::after { content:' ↓'; opacity:1; color:var(--ac); }
   <button class="nb"     data-section="analisis" style="display:none" id="nb-fondos-fiscal"     onclick="ST('fondos','fiscal',this)">Fiscal</button>
   <button class="nb"     data-section="analisis" style="display:none" id="nb-fondos-rebalanceo" onclick="ST('fondos','rebalanceo',this)">Rebalanceo</button>
   <span class="nb-sep"   data-section="analisis" style="display:none">|</span>
+  <button class="nb"     data-section="analisis" style="display:none" id="nb-fondos-benchmark"  onclick="ST('fondos','benchmark',this)">📊 Benchmark</button>
+  <button class="nb"     data-section="analisis" style="display:none" id="nb-fondos-xray"      onclick="ST('fondos','xray',this)">🔬 X-Ray</button>
+  <span class="nb-sep"   data-section="analisis" style="display:none">|</span>
   <button class="nb"     data-section="analisis" style="display:none" id="nb-acciones-analisis" onclick="ST('acciones','analisis',this)">🟣 Acciones</button>
   <button class="nb"     data-section="analisis" style="display:none" id="nb-acciones-fiscal"   onclick="ST('acciones','fiscal',this)">Fiscal</button>
 
@@ -301,6 +304,42 @@ th.sort-desc::after { content:' ↓'; opacity:1; color:var(--ac); }
         <div id="pie-lbl-f" style="width:100%;margin-top:8px"></div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- FONDOS · BENCHMARK -->
+<div id="view-fondos-benchmark" class="view">
+  <div class="krow" id="bench-kd"></div>
+  <div id="bench-panel"></div>
+</div>
+
+<!-- FONDOS · X-RAY MORNINGSTAR -->
+<div id="view-fondos-xray" class="view">
+  <div style="max-width:900px;margin:0 auto">
+
+    <!-- Upload panel (solo visible si no hay datos aún) -->
+    <div id="xray-upload-panel" class="panel" style="margin-bottom:20px">
+      <div class="ph"><span class="ph-t">🔬 X-Ray Morningstar — MyInvestor</span></div>
+      <div class="pb" style="padding:20px 24px">
+        <p style="font-size:13px;color:var(--mu2);margin-bottom:16px;line-height:1.7">
+          Sube el informe <strong style="color:var(--text)">Resumen Morningstar</strong> de MyInvestor.<br>
+          Encuéntralo en <strong style="color:var(--text)">Mi ahorro e inversión → Fondos de inversión → Resumen Morningstar</strong>.
+        </p>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <label style="cursor:pointer;display:inline-flex;align-items:center;gap:8px;background:var(--fondos);color:#000;border-radius:10px;padding:10px 22px;font-weight:800;font-size:13px">
+            📄 Seleccionar PDF X-Ray
+            <input type="file" accept=".pdf" style="display:none" onchange="uploadXRay(this)">
+          </label>
+          <div id="xray-upload-status" style="font-size:13px;color:var(--mu2)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resultado -->
+    <div id="xray-result">
+      <div id="xray-content"></div>
+    </div>
+
   </div>
 </div>
 
